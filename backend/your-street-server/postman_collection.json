@@ -1,0 +1,93 @@
+{
+  "info": {
+    "name": "YourStreet API - Quick Tests",
+    "_postman_id": "yourstreet-collection",
+    "description": "Coleção simples para testar endpoints principais do backend YourStreet. Ajuste a variável `baseUrl` conforme seu ambiente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:5001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "WeatherForecast - Get",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/WeatherForecast"
+      }
+    },
+    {
+      "name": "Occurrences - List",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/occurrences"
+      }
+    },
+    {
+      "name": "Occurrences - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"buraco\",\n  \"description\": \"Buraco grande na rua\",\n  \"address\": \"Rua Exemplo, 123\"\n}"
+        },
+        "url": "{{baseUrl}}/api/occurrences"
+      }
+    },
+    {
+      "name": "Occurrences - Get by Id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/occurrences/1"
+      }
+    },
+    {
+      "name": "Occurrences - Toggle Like",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/occurrences/1/like"
+      }
+    },
+    {
+      "name": "Occurrences - Add Comment",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Comentário de teste via Postman\"\n}"
+        },
+        "url": "{{baseUrl}}/api/occurrences/1/comments"
+      }
+    },
+    {
+      "name": "Auth - Get Profile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/auth/profile"
+      }
+    },
+    {
+      "name": "Auth - Logout",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/auth/logout"
+      }
+    }
+  ]
+}
