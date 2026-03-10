@@ -23,12 +23,12 @@ Clique em **✏️ Edit** no Client ID
 #### **JavaScript Origins:**
 ```
 http://localhost:5173
-http://localhost:5186
+https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net
 ```
 
 #### **Authorized Redirect URIs:**
 ```
-http://localhost:5186/api/auth/callback/google
+https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net/api/auth/callback/google
 ```
 
 ### **5. Salvar:**
@@ -38,8 +38,8 @@ Clique em **💾 Save**
 
 ## 🔄 **URLs Configuradas no Backend**
 
-✅ **Login Endpoint**: `http://localhost:5186/api/auth/login/google`  
-✅ **Callback URL**: `http://localhost:5186/api/auth/callback/google`  
+✅ **Login Endpoint**: `https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net/api/auth/login/google`  
+✅ **Callback URL**: `https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net/api/auth/callback/google`  
 ✅ **Frontend URL**: `http://localhost:5173`
 
 ---
@@ -50,10 +50,10 @@ Certifique-se de que estas URLs estão no Google Console:
 
 ### **Authorized JavaScript Origins:**
 - `http://localhost:5173` (Frontend Vite)
-- `http://localhost:5186` (Backend ASP.NET)
+- `https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net` (Backend ASP.NET)
 
 ### **Authorized Redirect URIs:**
-- `http://localhost:5186/api/auth/callback/google` (Callback do OAuth)
+- `https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net/api/auth/callback/google` (Callback do OAuth)
 
 ---
 
@@ -71,7 +71,7 @@ Certifique-se de que estas URLs estão no Google Console:
 ### Verificar se:
 - ✅ URLs estão exatamente como mostrado acima
 - ✅ Cliente ID está correto no `appsettings.Development.json`
-- ✅ Backend está rodando na porta 5186
+- ✅ Backend está hospedado em `https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net`
 - ✅ Frontend está rodando na porta 5173
 
 ### Aguardar:

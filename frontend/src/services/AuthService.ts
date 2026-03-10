@@ -1,5 +1,5 @@
 // Configurações da API
-const API_BASE_URL = (import.meta.env as any).VITE_API_URL || 'http://localhost:5186/api';
+const API_BASE_URL = (import.meta.env as any).VITE_API_URL || 'https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net/api';
 
 export interface User {
   id: string;
