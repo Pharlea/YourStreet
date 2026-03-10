@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { LeftSection, RightSection, TabType } from "./components/ui";
 import { useAuth } from "../hooks/useAuth";
-import { Dashboard } from "./components/Dashboard.tsx";
+import SocialApp from "./social/App";
 import logo from "../assets/2ee5a729a53e6d7122aac1e983d6dd6a232f1a6b.png";
 
 export default function App() {
@@ -30,9 +30,10 @@ export default function App() {
     );
   }
 
-  // Se estiver autenticado, mostra a dashboard
-  if (isAuthenticated && user) {
-    return <Dashboard user={user} onLogout={logout} />;
+  // Se estiver autenticado ou optou por visualização como convidado, mostra a aplicação social layout
+  const guest = localStorage.getItem('guest') === 'true';
+  if ((isAuthenticated && user) || guest) {
+    return <SocialApp />;
   }
 
   // Tela de login

@@ -36,6 +36,8 @@ export const useAuth = (): UseAuthReturn => {
   const logout = async () => {
     await authService.logout();
     setUser(null);
+    // limpar modo convidado também
+    localStorage.removeItem('guest');
   };
 
   const checkAuth = async () => {

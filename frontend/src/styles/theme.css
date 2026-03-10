@@ -190,3 +190,19 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Leaflet popup customization */
+.leaflet-popup-content-wrapper {
+  border-radius: 0.625rem;
+}
+
+.leaflet-popup-content {
+  margin: 0.75rem;
+}

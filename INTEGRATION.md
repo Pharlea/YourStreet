@@ -12,7 +12,7 @@
 ### 🎯 **Frontend (React + TypeScript)**
 - ✅ AuthService para gerenciar autenticação
 - ✅ Hook useAuth para estado global
-- ✅ Dashboard pós-login
+- ✅ Página social pós-login (mapa, cria ocorrências, minhas reclamações)
 - ✅ Tela de loading
 - ✅ Integração com backend
 
@@ -39,7 +39,7 @@ npm run dev
 2. Clique em "Continuar com Google"
 3. Será redirecionado para OAuth do Google
 4. Após autorizar, volta para `http://localhost:5173?login=success`
-5. Dashboard carrega automaticamente
+5. Página social carrega automaticamente com mapa e navegação inferior
 
 ---
 
@@ -62,7 +62,7 @@ sequenceDiagram
     F->>F: Detecta sucesso
     F->>B: GET /api/auth/profile
     B->>F: Dados do usuário
-    F->>F: Exibe Dashboard
+    F->>F: Exibe página social (mapa)
 ```
 
 ---
@@ -78,8 +78,8 @@ sequenceDiagram
 ### **Frontend**
 - `services/AuthService.ts` - Serviço de autenticação  
 - `hooks/useAuth.ts` - Hook de estado global
-- `app/App.tsx` - Roteamento login/dashboard
-- `app/components/Dashboard.tsx` - Tela pós-login
+- `app/App.tsx` - Roteamento login/página social
+- `app/social` - Código da interface social pós-login (mapa, navegação, páginas)
 - `.env` - URL da API
 
 ---

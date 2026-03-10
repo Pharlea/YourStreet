@@ -101,6 +101,18 @@ export default function LoginCard({ onGoogleLogin, logoSrc }: LoginCardProps) {
             >
               {mode === 'login' ? 'Entrar' : 'Cadastrar'}
             </button>
+            {mode === 'login' && (
+              <button
+                className="w-full mt-2 text-sm text-gray-600 underline"
+                onClick={() => {
+                  // entrar como convidado para ver ocorrências
+                  localStorage.setItem('guest', 'true');
+                  window.location.href = '/';
+                }}
+              >
+                Ver ocorrências sem conta
+              </button>
+            )}
           </div>
         )}
 
