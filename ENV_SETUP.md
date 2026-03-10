@@ -11,9 +11,12 @@ Este projeto utiliza variáveis de ambiente para proteger dados sensíveis. Siga
    # Configurações do Banco de Dados
    CONNECTION_STRING=Data Source=yourstreet.db
 
-   # Google OAuth Configuration
+   # Google OAuth Configuration (backend)
    GOOGLE_CLIENT_ID=seu_google_client_id_aqui
    GOOGLE_CLIENT_SECRET=seu_google_client_secret_aqui
+
+   # Google OAuth Configuration (frontend)
+   VITE_GOOGLE_CLIENT_ID=seu_google_client_id_aqui  # usado pelo código React via import.meta.env
 
    # URLs
    FRONTEND_URL=http://localhost:5174
