@@ -1,0 +1,64 @@
+Este prompt é **uma atualização e correção do layout anterior**.
+
+Os **arquivos CSS e a logotipo do Your Street já foram enviados anteriormente**, então continue utilizando esses mesmos arquivos como referência visual. Não é necessário solicitar novos anexos.
+
+A interface deve continuar mantendo **consistência visual com a página de login**, seguindo o CSS já fornecido anteriormente.
+
+MUDANÇA PRINCIPAL:
+
+O projeto agora deve ter **foco em dispositivos móveis (mobile-first design)**.
+
+Em vez de uma página baseada em **feed de rede social**, a tela principal deve ser baseada em um **MAPA INTERATIVO**.
+
+ESTRUTURA DA TELA PRINCIPAL:
+
+A tela inicial deve mostrar:
+
+* Um **mapa ocupando a maior parte da tela**
+* Marcadores (pins) indicando **ocorrências de problemas nas ruas**
+* Um **campo de busca de localização** onde usuários podem pesquisar ruas, bairros ou cidades
+* Um botão para **centralizar o mapa na localização atual do usuário**
+
+Quando o usuário tocar em um marcador do mapa, deve abrir um **card de ocorrência** com as informações do problema.
+
+INFORMAÇÕES DA OCORRÊNCIA:
+
+Cada ocorrência deve conter:
+
+* Título do problema
+* Descrição do problema
+* Imagem ou imagens do problema
+* Localização
+* Data da postagem
+
+INTERAÇÕES DA OCORRÊNCIA:
+
+O card da ocorrência deve conter botões de interação:
+
+* Curtir (like)
+* Comentários
+* Compartilhar
+
+NAVEGAÇÃO DO APLICATIVO:
+
+Remover a funcionalidade de **perfil de usuário por enquanto**.
+
+Adicionar um **menu de navegação otimizado para mobile**, podendo ser inferior ou lateral, com as seguintes opções:
+
+* Mapa (tela principal)
+* Criar Ocorrência
+* Minhas Reclamações
+
+A seção **"Minhas Reclamações"** deve funcionar como uma **lista das ocorrências criadas pelo próprio usuário**, permitindo acompanhar todos os problemas já reportados.
+
+ESTILO DE DESIGN:
+
+* Interface moderna
+* Mobile-first
+* Layout limpo e intuitivo
+* Cards com cantos arredondados
+* Sombras suaves
+* Boa hierarquia visual
+* Interface inspirada em aplicativos modernos de mapas e serviços urbanos
+
+Certifique-se de que o layout seja **bem estruturado para um aplicativo mobile real**, com navegação simples e foco na experiência do usuário.

@@ -1,0 +1,28 @@
+@your_street_server_HostAddress = https://localhost:7186
+
+# Teste do WeatherForecast (endpoint original)
+GET {{your_street_server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
+
+# Iniciar login com Google OAuth
+# Este endpoint redirecionará para o Google para autenticação
+GET {{your_street_server_HostAddress}}/api/auth/login/google
+Accept: text/html
+
+###
+
+# Obter perfil do usuário autenticado
+# NOTA: Você precisa estar autenticado (cookies) para usar este endpoint
+GET {{your_street_server_HostAddress}}/api/auth/profile
+Accept: application/json
+
+###
+
+# Fazer logout
+# NOTA: Você precisa estar autenticado (cookies) para usar este endpoint
+POST {{your_street_server_HostAddress}}/api/auth/logout
+Content-Type: application/json
+
+###
