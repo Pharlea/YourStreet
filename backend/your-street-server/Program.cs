@@ -39,7 +39,10 @@ builder.Services.AddCors(options =>
 {
         options.AddDefaultPolicy(builder =>
         {
-            builder.WithOrigins("http://localhost:5173", "https://localhost:5173")
+            // allow localhost for development and the deployed frontend origin
+            builder.WithOrigins("http://localhost:5173", "https://localhost:5173",
+                                 "https://yourstreet-afh0echkdsbqf6ft.brazilsouth-01.azurewebsites.net", 
+                                 "https://yourstreetmain.vercel.app/")
                    .AllowAnyMethod()
                    .AllowAnyHeader()
                    .AllowCredentials(); // Importante para cookies de sessão
