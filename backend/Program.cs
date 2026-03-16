@@ -20,9 +20,13 @@ builder.Services.AddSwaggerGen(options =>
     options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "YourStreet API", Version = "v1" });
 });
 
-// Configurar Entity Framework com SQLite
+// Configurar Entity Framework com PostgreSQL
+var dbConnectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string nao configurada. Defina CONNECTION_STRING ou ConnectionStrings:DefaultConnection.");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(dbConnectionString));
 
 // Configurar cache para sessões
 builder.Services.AddDistributedMemoryCache();
@@ -85,13 +89,13 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Aplicar migrações automaticamente durante o desenvolvimento
+// Aplicar migrations automaticamente durante o desenvolvimento
 if (app.Environment.IsDevelopment())
 {
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        context.Database.EnsureCreated();
+        context.Database.Migrate();
     }
 }
 

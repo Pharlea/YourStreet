@@ -1,5 +1,4 @@
-// Configurações da API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5186/api';
+import { API_BASE_URL, apiFetch } from './api';
 
 export interface User {
   id: string;
@@ -26,12 +25,7 @@ class AuthService {
   // Verificar se há usuário logado
   async checkCurrentUser(): Promise<User | null> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await apiFetch('/auth/me');
 
       if (response.ok) {
         this.user = await response.json();
@@ -61,12 +55,8 @@ class AuthService {
   // Fazer logout
   async logout(): Promise<void> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+      const response = await apiFetch('/auth/logout', {
         method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
 
       if (response.ok) {

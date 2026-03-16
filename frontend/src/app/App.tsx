@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { LeftSection, RightSection, TabType } from "./components/ui";
 import { useAuth } from "../hooks/useAuth";
-import { Dashboard } from "./components/Dashboard.tsx";
+import SocialApp from "./social/SocialApp";
 import logo from "../assets/2ee5a729a53e6d7122aac1e983d6dd6a232f1a6b.png";
 
 export default function App() {
@@ -30,9 +30,9 @@ export default function App() {
     );
   }
 
-  // Se estiver autenticado, mostra a dashboard
+  // Se estiver autenticado, mostra a area social (mapa/criar/minhas ocorrencias)
   if (isAuthenticated && user) {
-    return <Dashboard user={user} onLogout={logout} />;
+    return <SocialApp onLogout={logout} />;
   }
 
   // Tela de login

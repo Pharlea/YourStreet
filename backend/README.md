@@ -1,11 +1,11 @@
 # YourStreet Server - Sistema de Login com Google OAuth
 
-Este é um sistema de login simples e funcional usando Google OAuth2 e armazenamento em SQLite. O projeto foi implementado em ASP.NET Core 9.0.
+Este é um sistema de login simples e funcional usando Google OAuth2 e armazenamento em PostgreSQL (Supabase). O projeto foi implementado em ASP.NET Core 9.0.
 
 ## Funcionalidades
 
 - ✅ Autenticação via Google OAuth2
-- ✅ Armazenamento de usuários em SQLite
+- ✅ Armazenamento de usuários em PostgreSQL (Supabase)
 - ✅ API RESTful
 - ✅ Criação/atualização automática de usuários
 - ✅ Middleware de autenticação e autorização
@@ -23,7 +23,7 @@ Este é um sistema de login simples e funcional usando Google OAuth2 e armazenam
 ├── Migrations/                  # Migrações do Entity Framework
 ├── Program.cs                   # Configuração da aplicação
 ├── appsettings.json            # Configurações da aplicação
-└── yourstreet.db               # Banco de dados SQLite
+└── appsettings*.json           # Configurações (incluindo conexão PostgreSQL)
 ```
 
 ## Configuração do Google OAuth
@@ -36,8 +36,8 @@ Este é um sistema de login simples e funcional usando Google OAuth2 e armazenam
 4. Vá para "Credenciais" → "Criar credenciais" → "ID do cliente OAuth"
 5. Selecione "Aplicação da web"
 6. Configure as URIs autorizadas:
-   - **Origens JavaScript autorizadas**: `https://localhost:7186`
-   - **URIs de redirecionamento autorizadas**: `https://localhost:7186/signin-google`
+   - **Origens JavaScript autorizadas**: `https://localhost:7286`
+   - **URIs de redirecionamento autorizadas**: `https://localhost:7286/signin-google`
 
 ### 2. Configurar as Credenciais na Aplicação
 
@@ -79,7 +79,7 @@ Edite os arquivos `appsettings.json` e `appsettings.Development.json`:
    ```
 
 4. **Testar o login**:
-   - Acesse `https://localhost:7186/api/auth/login/google`
+   - Acesse `https://localhost:7286/api/auth/login/google`
    - Você será redirecionado para o Google para fazer login
    - Após o login, será redirecionado de volta com seus dados
 
@@ -99,7 +99,7 @@ Edite os arquivos `appsettings.json` e `appsettings.Development.json`:
 
 ## Pacotes NuGet Utilizados
 
-- `Microsoft.EntityFrameworkCore.Sqlite` (9.0.3)
+- `Npgsql.EntityFrameworkCore.PostgreSQL` (9.0.4)
 - `Microsoft.AspNetCore.Authentication.Google` (9.0.3)
 - `Microsoft.EntityFrameworkCore.Tools` (9.0.3)
 
@@ -115,11 +115,11 @@ Edite os arquivos `appsettings.json` e `appsettings.Development.json`:
 
 ### Erro "Origem não autorizada"
 
-Certifique-se de que a URL `https://localhost:7186` está configurada nas origens autorizadas no Google Cloud Console.
+Certifique-se de que a URL `https://localhost:7286` está configurada nas origens autorizadas no Google Cloud Console.
 
 ### Erro "URI de redirecionamento inválido"
 
-Adicione `https://localhost:7186/signin-google` às URIs de redirecionamento autorizadas no Google Cloud Console.
+Adicione `https://localhost:7286/signin-google` às URIs de redirecionamento autorizadas no Google Cloud Console.
 
 ### Erro de SSL/HTTPS
 
