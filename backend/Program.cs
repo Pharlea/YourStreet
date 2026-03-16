@@ -60,6 +60,9 @@ builder.Services.AddCors(options =>
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Adicionar health checks
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -89,7 +92,14 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+<<<<<<< Updated upstream
 // Aplicar migrations automaticamente durante o desenvolvimento
+=======
+// Mapear health checks
+app.MapHealthChecks("/health");
+
+// Aplicar migrações automaticamente durante o desenvolvimento
+>>>>>>> Stashed changes
 if (app.Environment.IsDevelopment())
 {
     using (var scope = app.Services.CreateScope())
