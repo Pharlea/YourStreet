@@ -92,14 +92,10 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-<<<<<<< Updated upstream
-// Aplicar migrations automaticamente durante o desenvolvimento
-=======
 // Mapear health checks
 app.MapHealthChecks("/health");
 
 // Aplicar migrações automaticamente durante o desenvolvimento
->>>>>>> Stashed changes
 if (app.Environment.IsDevelopment())
 {
     using (var scope = app.Services.CreateScope())
