@@ -39,7 +39,11 @@ builder.Services.AddCors(options =>
 {
         options.AddDefaultPolicy(builder =>
         {
-            builder.WithOrigins("http://localhost:5173", "https://localhost:5173")
+            var corsOrigin = Environment.GetEnvironmentVariable("CORS_ORIGIN") ?? "http://localhost:5173";
+            var allowedOrigins = corsOrigin.Split(',').Select(o => o.Trim()).ToArray();
+            
+            builder.WithOrigins(allowedOrigins)
+                   .WithOrigins("http://localhost:5173", "https://localhost:5173")
                    .AllowAnyMethod()
                    .AllowAnyHeader()
                    .AllowCredentials(); // Importante para cookies de sessão
