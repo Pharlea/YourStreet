@@ -1,4 +1,4 @@
-@your_street_server_HostAddress = https://localhost:7186
+@your_street_server_HostAddress = https://localhost:7286
 
 # Teste do WeatherForecast (endpoint original)
 GET {{your_street_server_HostAddress}}/weatherforecast/
