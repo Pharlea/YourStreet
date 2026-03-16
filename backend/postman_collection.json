@@ -1,0 +1,162 @@
+{
+  "info": {
+    "name": "YourStreet API - Quick Tests",
+    "_postman_id": "yourstreet-collection",
+    "description": "Coleção para testar endpoints do backend YourStreet.\n\n🔐 IMPORTANTE PARA AUTENTICAÇÃO:\n1. Execute primeiro 'Dev Auth - Impersonate' para criar sessão de desenvolvimento\n2. Depois pode executar endpoints que requerem autenticação como 'Occurrences - Create'\n3. Use 'Dev Auth - Clear Session' para limpar a sessão quando necessário\n\nAjuste a variável `baseUrl` conforme seu ambiente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:5001",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Dev Auth - Impersonate (Required for Testing)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Este endpoint deve ser chamado primeiro para criar uma sessão de desenvolvimento",
+              "console.log('Este endpoint cria uma sessão de desenvolvimento. Execute antes de criar occorrências.');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/DevAuth/impersonate?userId=1&email=test@example.com&name=Test User",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "DevAuth", "impersonate"],
+          "query": [
+            {"key": "userId", "value": "1"},
+            {"key": "email", "value": "test@example.com"},
+            {"key": "name", "value": "Test User"}
+          ]
+        }
+      }
+    },
+    {
+      "name": "Dev Auth - Clear Session",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/DevAuth/clear"
+      }
+    },
+    {
+      "name": "WeatherForecast - Get",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/WeatherForecast"
+      }
+    },
+    {
+      "name": "Occurrences - List",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/occurrences"
+      }
+    },
+    {
+      "name": "Occurrences - Create",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// IMPORTANTE: Execute primeiro 'Dev Auth - Impersonate' para criar uma sessão válida",
+              "console.log('⚠️ Certifique-se de ter executado Dev Auth - Impersonate primeiro!');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"buraco\",\n  \"description\": \"Buraco grande na rua\",\n  \"address\": \"Rua Exemplo, 123\"\n}"
+        },
+        "url": "{{baseUrl}}/api/occurrences"
+      }
+    },
+    {
+      "name": "Occurrences - Get by Id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/occurrences/1"
+      }
+    },
+    {
+      "name": "Occurrences - Toggle Like",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/occurrences/1/like"
+      }
+    },
+    {
+      "name": "Occurrences - Get Comments",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/occurrences/1/comments"
+      }
+    },
+    {
+      "name": "Occurrences - Add Comment",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// IMPORTANTE: Execute primeiro 'Dev Auth - Impersonate' para criar uma sessão válida",
+              "console.log('⚠️ Certifique-se de ter executado Dev Auth - Impersonate primeiro!');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Comentário de teste via Postman\"\n}"
+        },
+        "url": "{{baseUrl}}/api/occurrences/1/comments"
+      }
+    },
+    {
+      "name": "Auth - Get Profile",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/auth/profile"
+      }
+    },
+    {
+      "name": "Auth - Logout",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/auth/logout"
+      }
+    }
+  ]
+}

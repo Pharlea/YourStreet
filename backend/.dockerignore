@@ -1,0 +1,11 @@
+bin/
+obj/
+.git
+.gitignore
+.vs
+.vscode
+*.sln
+*.user
+appsettings.Development.json
+.env
+yourstreet.db
