@@ -6,6 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>your_street_server</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateImplicitNamespaceImports>false</GenerateImplicitNamespaceImports>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
@@ -20,5 +22,9 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
+
+  <Target Name="RemoveImplicitFrameworkAttributes" BeforeTargets="Build">
+    <Delete Files="$(IntermediateOutputPath).NETCoreApp,Version=v9.0.AssemblyAttributes.cs" />
+  </Target>
 
 </Project>

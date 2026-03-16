@@ -3,6 +3,7 @@ WORKDIR /app
 
 COPY . .
 
+RUN rm -rf bin obj your-street-server/bin your-street-server/obj
 RUN dotnet restore your-street-server.csproj
 RUN dotnet publish your-street-server.csproj -c Release -o /app/out
 

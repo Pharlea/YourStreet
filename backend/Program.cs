@@ -2,8 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using your_street_server.Data;
 using DotNetEnv;
 
-// Carregar variáveis de ambiente do arquivo .env
-Env.Load();
+// Carregar variáveis de ambiente do arquivo .env (se existir)
+if (File.Exists(".env"))
+{
+    Env.Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
