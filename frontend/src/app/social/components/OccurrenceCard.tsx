@@ -1,6 +1,13 @@
 import { useState } from "react";
-import { Heart, MapPin, MessageCircle, Share2, X } from "lucide-react";
+import { Bookmark, Heart, MapPin, MessageCircle, X } from "lucide-react";
 import { Card, CardContent, CardFooter } from "./ui/card";
+
+interface OccurrenceCommentItem {
+  id: number;
+  text: string;
+  createdAt: string;
+  userName?: string;
+}
 
 interface OccurrenceCardProps {
   title: string;
@@ -10,6 +17,15 @@ interface OccurrenceCardProps {
   images: string[];
   likes: number;
   comments: number;
+  favorites: number;
+  likedByCurrentUser: boolean;
+  favoritedByCurrentUser: boolean;
+  commentItems: Array<OccurrenceCommentItem>;
+  commentsLoading: boolean;
+  actionsLoading: boolean;
+  onToggleLike: () => Promise<void>;
+  onToggleFavorite: () => Promise<void>;
+  onAddComment: (text: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -21,14 +37,34 @@ export function OccurrenceCard({
   images,
   likes,
   comments,
+  favorites,
+  likedByCurrentUser,
+  favoritedByCurrentUser,
+  commentItems,
+  commentsLoading,
+  actionsLoading,
+  onToggleLike,
+  onToggleFavorite,
+  onAddComment,
   onClose,
 }: OccurrenceCardProps) {
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(likes);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
 
-  const handleLike = () => {
-    setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1));
-    setIsLiked((prev) => !prev);
+  const handleSubmitComment = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!commentText.trim()) return;
+
+    try {
+      setSubmittingComment(true);
+      await onAddComment(commentText.trim());
+      setCommentText("");
+      setShowComments(true);
+    } finally {
+      setSubmittingComment(false);
+    }
   };
 
   return (
@@ -64,22 +100,65 @@ export function OccurrenceCard({
         </CardContent>
 
         <CardFooter className="p-4 pt-3 border-t border-border bg-white">
-          <div className="flex items-center gap-6 w-full">
+          <div className="flex items-center gap-4 w-full mb-3">
             <button
-              onClick={handleLike}
-              className={`flex items-center gap-2 hover:text-amber-600 transition-colors ${isLiked ? "text-amber-600" : ""}`}
+              onClick={onToggleLike}
+              disabled={actionsLoading}
+              className={`flex items-center gap-2 hover:text-amber-600 transition-colors ${likedByCurrentUser ? "text-amber-600" : ""}`}
             >
-              <Heart className={`h-5 w-5 ${isLiked ? "fill-current" : ""}`} />
-              <span className="text-sm">{likeCount}</span>
+              <Heart className={`h-5 w-5 ${likedByCurrentUser ? "fill-current" : ""}`} />
+              <span className="text-sm">{likes}</span>
             </button>
-            <button className="flex items-center gap-2 hover:text-primary transition-colors">
+            <button
+              onClick={() => setShowComments((prev) => !prev)}
+              className={`flex items-center gap-2 hover:text-primary transition-colors ${showComments ? "text-primary" : ""}`}
+            >
               <MessageCircle className="h-5 w-5" />
               <span className="text-sm">{comments}</span>
             </button>
-            <button className="flex items-center gap-2 hover:text-primary transition-colors ml-auto">
-              <Share2 className="h-5 w-5" />
+            <button
+              onClick={onToggleFavorite}
+              disabled={actionsLoading}
+              className={`flex items-center gap-2 hover:text-primary transition-colors ml-auto ${favoritedByCurrentUser ? "text-primary" : ""}`}
+            >
+              <Bookmark className={`h-5 w-5 ${favoritedByCurrentUser ? "fill-current" : ""}`} />
+              <span className="text-sm">{favorites}</span>
             </button>
           </div>
+
+          <form onSubmit={handleSubmitComment} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={commentText}
+              onChange={(event) => setCommentText(event.target.value)}
+              placeholder="Comente nesta ocorrencia"
+              className="w-full rounded-md border border-input px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              disabled={submittingComment || actionsLoading || !commentText.trim()}
+              className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm disabled:opacity-50"
+            >
+              Enviar
+            </button>
+          </form>
+
+          {showComments && (
+            <div className="mt-3 max-h-36 overflow-y-auto space-y-2">
+              {commentsLoading ? (
+                <p className="text-xs text-muted-foreground">Carregando comentarios...</p>
+              ) : commentItems.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sem comentarios ainda.</p>
+              ) : (
+                commentItems.map((comment) => (
+                  <div key={comment.id} className="rounded-md bg-muted/40 px-2 py-1.5">
+                    <p className="text-xs font-medium">{comment.userName || "Usuario"}</p>
+                    <p className="text-xs">{comment.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </CardFooter>
       </Card>
     </div>

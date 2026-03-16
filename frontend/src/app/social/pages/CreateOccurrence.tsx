@@ -5,34 +5,65 @@ import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
+import occurrenceService, { OccurrenceType } from "../../../services/OccurrenceService";
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Falha ao ler imagem"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export function CreateOccurrence() {
-  const [title, setTitle] = useState("");
+  const [type, setType] = useState<OccurrenceType>("buraco");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [image, setImage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    const newImages = Array.from(files).map((file) => URL.createObjectURL(file));
-    setImages((prev) => [...prev, ...newImages]);
+    try {
+      const base64 = await fileToBase64(files[0]);
+      setImage(base64);
+    } catch (error) {
+      console.error(error);
+      toast.error("Nao foi possivel processar a imagem");
+    }
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!title || !description || !location) {
+    if (!description || !location) {
       toast.error("Por favor, preencha todos os campos obrigatorios");
       return;
     }
 
-    toast.success("Ocorrencia criada com sucesso!");
-    setTitle("");
-    setDescription("");
-    setLocation("");
-    setImages([]);
+    try {
+      setSubmitting(true);
+      await occurrenceService.create({
+        type,
+        description,
+        address: location,
+        imageBase64: image,
+      });
+
+      toast.success("Ocorrencia criada com sucesso!");
+      setType("buraco");
+      setDescription("");
+      setLocation("");
+      setImage(null);
+    } catch (error) {
+      console.error(error);
+      toast.error("Nao foi possivel criar a ocorrencia");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -45,16 +76,18 @@ export function CreateOccurrence() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="title">Titulo do Problema *</Label>
-            <Input
-              id="title"
-              type="text"
-              placeholder="Ex: Buraco na rua principal"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className="bg-input-background border-0"
+            <Label htmlFor="type">Tipo do Problema *</Label>
+            <select
+              id="type"
+              value={type}
+              onChange={(event) => setType(event.target.value as OccurrenceType)}
+              className="w-full rounded-md bg-input-background border-0 px-3 py-2 text-sm"
               required
-            />
+            >
+              <option value="buraco">Buraco</option>
+              <option value="alagamento">Alagamento</option>
+              <option value="acidente">Acidente</option>
+            </select>
           </div>
 
           <div className="space-y-2">
@@ -88,13 +121,11 @@ export function CreateOccurrence() {
           <div className="space-y-2">
             <Label>Fotos do Problema</Label>
             <div className="space-y-3">
-              {images.length > 0 && (
+              {image && (
                 <div className="grid grid-cols-3 gap-2">
-                  {images.map((image, index) => (
-                    <div key={index} className="relative aspect-square rounded-lg overflow-hidden">
-                      <img src={image} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
-                    </div>
-                  ))}
+                  <div className="relative aspect-square rounded-lg overflow-hidden">
+                    <img src={image} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
                 </div>
               )}
 
@@ -116,7 +147,6 @@ export function CreateOccurrence() {
                   id="image-upload"
                   type="file"
                   accept="image/*"
-                  multiple
                   onChange={handleImageUpload}
                   className="hidden"
                 />
@@ -126,10 +156,11 @@ export function CreateOccurrence() {
 
           <button
             type="submit"
+            disabled={submitting}
             className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-opacity-90 transition-all flex items-center justify-center gap-2"
           >
             <Send className="h-5 w-5" />
-            Enviar Ocorrencia
+            {submitting ? "Enviando..." : "Enviar Ocorrencia"}
           </button>
         </form>
       </div>

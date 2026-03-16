@@ -11,7 +11,7 @@ public class OccurrencesController : ControllerBase
 {
     private readonly AppDbContext _context;
 
-    private static readonly string[] AllowedTypes = new[] { "buraco", "alagamento", "Acidente" };
+    private static readonly string[] AllowedTypes = new[] { "buraco", "alagamento", "acidente" };
 
     public OccurrencesController(AppDbContext context)
     {
@@ -25,13 +25,14 @@ public class OccurrencesController : ControllerBase
         if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
             return Unauthorized("Usuário não autenticado");
 
-        if (string.IsNullOrEmpty(dto.Type) || !AllowedTypes.Contains(dto.Type))
+        var normalizedType = dto.Type?.Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(normalizedType) || !AllowedTypes.Contains(normalizedType))
             return BadRequest("Tipo inválido");
 
         var occ = new Occurrence
         {
             UserId = userId,
-            Type = dto.Type,
+            Type = normalizedType!,
             Description = dto.Description,
             Address = dto.Address,
             ImageBase64 = dto.ImageBase64,
@@ -156,6 +157,23 @@ public class OccurrencesController : ControllerBase
         return Ok();
     }
 
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var userIdStr = HttpContext.Session.GetString("user_id");
+        if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
+            return Unauthorized("Usuário não autenticado");
+
+        var occ = await _context.Occurrences.FirstOrDefaultAsync(o => o.Id == id);
+        if (occ == null) return NotFound("Ocorrência não encontrada");
+        if (occ.UserId != userId) return Forbid();
+
+        _context.Occurrences.Remove(occ);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
     [HttpGet("{id}/comments")]
     public async Task<IActionResult> GetComments(int id)
     {
@@ -174,10 +192,10 @@ public class OccurrencesController : ControllerBase
                 createdAt = c.CreatedAt,
                 user = new
                 {
-                    id = c.User.Id,
-                    name = c.User.Name,
-                    email = c.User.Email,
-                    picture = c.User.Picture
+                    id = c.User != null ? c.User.Id : 0,
+                    name = c.User != null ? c.User.Name : string.Empty,
+                    email = c.User != null ? c.User.Email : string.Empty,
+                    picture = c.User != null ? c.User.Picture : null
                 }
             })
             .ToListAsync();

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Locate, Search } from "lucide-react";
-import { OccurrenceCard } from "../components/OccurrenceCard";
+import { toast } from "sonner";
 import { Input } from "../components/ui/input";
+import occurrenceService, { OccurrenceSummary } from "../../../services/OccurrenceService";
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -21,90 +23,91 @@ const yellowIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-interface Occurrence {
-  id: number;
-  title: string;
-  description: string;
-  location: string;
-  date: string;
-  images: string[];
-  likes: number;
-  comments: number;
-  lat: number;
-  lng: number;
+const mapCenter: [number, number] = [-23.5505, -46.6333];
+
+const typeLabel: Record<string, string> = {
+  buraco: "Buraco",
+  alagamento: "Alagamento",
+  acidente: "Acidente",
+};
+
+function getOccurrenceCoordinates(id: number): [number, number] {
+  const latOffset = ((id % 7) - 3) * 0.0035;
+  const lngOffset = ((id % 9) - 4) * 0.0035;
+  return [mapCenter[0] + latOffset, mapCenter[1] + lngOffset];
 }
 
-const mockOccurrences: Occurrence[] = [
-  // {
-  //   id: 1,
-  //   title: "Buraco gigante na rua principal",
-  //   description: "Buraco enorme esta causando problemas para carros e motocicletas.",
-  //   location: "Rua das Flores, Centro",
-  //   date: "Ha 2 horas",
-  //   images: ["https://images.unsplash.com/photo-1696692118953-df89e9f639c9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800"],
-  //   likes: 42,
-  //   comments: 15,
-  //   lat: -23.5505,
-  //   lng: -46.6333,
-  // },
-  // {
-  //   id: 2,
-  //   title: "Poste de iluminacao quebrado",
-  //   description: "Poste quebrado deixando a rua escura a noite.",
-  //   location: "Av. Principal, Jardim das Acacias",
-  //   date: "Ha 5 horas",
-  //   images: ["https://images.unsplash.com/photo-1590611698402-672fa0ecc59d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800"],
-  //   likes: 28,
-  //   comments: 8,
-  //   lat: -23.5555,
-  //   lng: -46.6383,
-  // },
-  // {
-  //   id: 3,
-  //   title: "Acumulo de lixo na calcada",
-  //   description: "Lixo acumulado ha dias na esquina.",
-  //   location: "Rua do Comercio, Vila Nova",
-  //   date: "Ha 8 horas",
-  //   images: ["https://images.unsplash.com/photo-1580767114670-c778cc443675?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800"],
-  //   likes: 67,
-  //   comments: 23,
-  //   lat: -23.5455,
-  //   lng: -46.6283,
-  // },
-];
-
 export function MapView() {
-  const [selectedOccurrence, setSelectedOccurrence] = useState<Occurrence | null>(null);
+  const navigate = useNavigate();
+  const [occurrences, setOccurrences] = useState<Array<OccurrenceSummary>>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const mapRef = useRef<L.Map | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  const filteredOccurrences = occurrences.filter((occurrence) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+
+    const searchText = [occurrence.type, occurrence.description, occurrence.address].join(" ").toLowerCase();
+    return searchText.includes(query);
+  });
+
+  const loadOccurrences = async () => {
+    try {
+      const data = await occurrenceService.list();
+      setOccurrences(data);
+    } catch (error) {
+      console.error(error);
+      toast.error("Nao foi possivel carregar as ocorrencias");
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await loadOccurrences();
+      setLoading(false);
+    })();
+  }, []);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    const map = L.map(mapContainerRef.current).setView([-23.5505, -46.6333], 13);
+    const map = L.map(mapContainerRef.current).setView(mapCenter, 13);
     mapRef.current = map;
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
 
-    mockOccurrences.forEach((occurrence) => {
-      const marker = L.marker([occurrence.lat, occurrence.lng], { icon: yellowIcon }).addTo(map);
-      marker.bindPopup(
-        `<div style="font-family:sans-serif;"><p style="font-weight:600;margin:0 0 4px 0;font-size:14px;">${occurrence.title}</p><p style="color:#6b7280;margin:0;font-size:12px;">${occurrence.location}</p></div>`,
-      );
-
-      marker.on("click", () => {
-        setSelectedOccurrence(occurrence);
-      });
-    });
+    markersLayerRef.current = L.layerGroup().addTo(map);
 
     return () => {
       map.remove();
       mapRef.current = null;
+      markersLayerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapRef.current || !markersLayerRef.current) return;
+
+    markersLayerRef.current.clearLayers();
+
+    filteredOccurrences.forEach((occurrence) => {
+      const coords = getOccurrenceCoordinates(occurrence.id);
+      const marker = L.marker(coords, { icon: yellowIcon }).addTo(markersLayerRef.current!);
+      marker.bindPopup(
+        `<div style="font-family:sans-serif;"><p style="font-weight:600;margin:0 0 4px 0;font-size:14px;">${typeLabel[occurrence.type] || occurrence.type}</p><p style="color:#6b7280;margin:0;font-size:12px;">${occurrence.address || "Endereco nao informado"}</p></div>`,
+      );
+
+      marker.on("click", () => {
+        navigate(`/ocorrencia/${occurrence.id}`);
+      });
+    });
+  }, [filteredOccurrences, navigate]);
 
   const handleLocate = () => {
     if (!mapRef.current) return;
@@ -115,6 +118,10 @@ export function MapView() {
 
       L.marker(event.latlng).addTo(mapRef.current).bindPopup("Voce esta aqui").openPopup();
     });
+  };
+
+  const handleSelectOccurrence = (occurrenceId: number) => {
+    navigate(`/ocorrencia/${occurrenceId}`);
   };
 
   return (
@@ -142,18 +149,37 @@ export function MapView() {
 
       <div ref={mapContainerRef} className="w-full h-full" />
 
-      {selectedOccurrence && (
-        <OccurrenceCard
-          title={selectedOccurrence.title}
-          description={selectedOccurrence.description}
-          location={selectedOccurrence.location}
-          date={selectedOccurrence.date}
-          images={selectedOccurrence.images}
-          likes={selectedOccurrence.likes}
-          comments={selectedOccurrence.comments}
-          onClose={() => setSelectedOccurrence(null)}
-        />
+      {!loading && filteredOccurrences.length > 0 && (
+        <div className="absolute left-3 right-3 bottom-24 z-[350] max-w-md mx-auto">
+          <div className="bg-white/95 rounded-xl shadow-lg border border-border p-2 max-h-40 overflow-y-auto space-y-1.5">
+            {filteredOccurrences.map((occurrence) => (
+              <button
+                key={occurrence.id}
+                onClick={() => handleSelectOccurrence(occurrence.id)}
+                className="w-full text-left rounded-lg px-3 py-2 transition-colors hover:bg-accent"
+              >
+                <p className="text-sm font-medium">{typeLabel[occurrence.type] || occurrence.type}</p>
+                <p className="text-xs text-muted-foreground truncate">{occurrence.address || "Endereco nao informado"}</p>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
+
+      {loading && (
+        <div className="absolute inset-0 z-[300] bg-white/70 grid place-items-center">
+          <p className="text-sm text-muted-foreground">Carregando ocorrencias...</p>
+        </div>
+      )}
+
+      {!loading && filteredOccurrences.length === 0 && (
+        <div className="absolute inset-x-0 bottom-28 z-[300] px-4">
+          <div className="max-w-md mx-auto bg-white/95 rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground text-center">
+            Nenhuma ocorrencia encontrada para o filtro atual.
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

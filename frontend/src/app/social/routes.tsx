@@ -6,6 +6,7 @@ import { MobileNavbar } from "./components/MobileNavbar";
 import { CreateOccurrence } from "./pages/CreateOccurrence";
 import { MapView } from "./pages/MapView";
 import { MyReports } from "./pages/MyReports";
+import { OccurrenceDetails } from "./pages/OccurrenceDetails";
 
 function Layout({ children, onLogout }: { children: ReactNode; onLogout: () => Promise<void> }) {
   return (
@@ -41,6 +42,14 @@ export function createSocialRouter(onLogout: () => Promise<void>) {
       element: (
         <Layout onLogout={onLogout}>
           <MyReports />
+        </Layout>
+      ),
+    },
+    {
+      path: "/ocorrencia/:id",
+      element: (
+        <Layout onLogout={onLogout}>
+          <OccurrenceDetails />
         </Layout>
       ),
     },
