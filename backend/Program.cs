@@ -44,17 +44,24 @@ builder.Services.AddSession(options =>
 // Configurar CORS
 builder.Services.AddCors(options =>
 {
-        options.AddDefaultPolicy(builder =>
-        {
-            var corsOrigin = Environment.GetEnvironmentVariable("CORS_ORIGIN") ?? "http://localhost:5173";
-            var allowedOrigins = corsOrigin.Split(',').Select(o => o.Trim()).ToArray();
-            
-            builder.WithOrigins(allowedOrigins)
-                   .WithOrigins("http://localhost:5173", "https://localhost:5173")
-                   .AllowAnyMethod()
-                   .AllowAnyHeader()
-                   .AllowCredentials(); // Importante para cookies de sessão
-        });
+    options.AddDefaultPolicy(builder =>
+    {
+        var corsOrigin = Environment.GetEnvironmentVariable("CORS_ORIGIN") ?? "http://localhost:5173";
+        var allowedOrigins = corsOrigin
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(o => o.Trim().TrimEnd('/'))
+            .Where(o => !string.IsNullOrWhiteSpace(o))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Keep localhost origins for local development while honoring production env origins.
+        allowedOrigins.Add("http://localhost:5173");
+        allowedOrigins.Add("https://localhost:5173");
+
+        builder.WithOrigins(allowedOrigins.ToArray())
+               .AllowAnyMethod()
+               .AllowAnyHeader()
+               .AllowCredentials();
+    });
 });
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
