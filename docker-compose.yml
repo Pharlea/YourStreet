@@ -1,23 +1,19 @@
-version: "3.9"
-
 services:
 
   backend:
     build: ./backend
+    env_file:
+      - ./backend/.env
     ports:
-      - "8080:8080"
+      - "5186:8080"
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_ENVIRONMENT=Production
-      - CORS_ORIGIN=http://frontend:5173
+      - CORS_ORIGIN=http://localhost:5173
+      - FRONTEND_URL=http://localhost:5173
+      - BACKEND_URL=http://localhost:5186
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   frontend:
     build: ./frontend
@@ -25,11 +21,11 @@ services:
       - "5173:5173"
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     networks:
       - app-network
     environment:
-      - VITE_API_URL=http://backend:8080
+      - VITE_API_URL=http://localhost:5186/api
 
 networks:
   app-network:

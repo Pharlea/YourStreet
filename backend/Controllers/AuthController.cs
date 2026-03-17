@@ -22,7 +22,8 @@ public class AuthController : ControllerBase
     {
         // URL Google OAuth manual
         var clientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
-        var redirectUri = $"{Request.Scheme}://{Request.Host}/api/auth/callback/google";
+        var backendBaseUrl = GetBackendBaseUrl();
+        var redirectUri = $"{backendBaseUrl}/api/auth/callback/google";
         var scope = "openid profile email";
         var state = Guid.NewGuid().ToString();
         
@@ -119,6 +120,7 @@ public class AuthController : ControllerBase
     private async Task<TokenResponse?> ExchangeCodeForTokenAsync(string code)
     {
         using var httpClient = new HttpClient();
+        var backendBaseUrl = GetBackendBaseUrl();
         
         var tokenRequest = new Dictionary<string, string>
         {
@@ -126,7 +128,7 @@ public class AuthController : ControllerBase
             {"client_secret", Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET")!},
             {"code", code},
             {"grant_type", "authorization_code"},
-            {"redirect_uri", $"{Request.Scheme}://{Request.Host}/api/auth/callback/google"}
+            {"redirect_uri", $"{backendBaseUrl}/api/auth/callback/google"}
         };
 
         var content = new FormUrlEncodedContent(tokenRequest);
@@ -139,6 +141,17 @@ public class AuthController : ControllerBase
         }
         
         return null;
+    }
+
+    private string GetBackendBaseUrl()
+    {
+        var configuredBackendUrl = Environment.GetEnvironmentVariable("BACKEND_URL");
+        if (!string.IsNullOrWhiteSpace(configuredBackendUrl))
+        {
+            return configuredBackendUrl.TrimEnd('/');
+        }
+
+        return $"{Request.Scheme}://{Request.Host}";
     }
 
     private async Task<UserInfo?> GetUserInfoAsync(string accessToken)
