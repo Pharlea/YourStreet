@@ -54,13 +54,10 @@ export function OccurrenceDetails() {
   const loadOccurrence = async () => {
     if (!Number.isFinite(occurrenceId)) return;
 
-    const [occurrenceData, commentsData] = await Promise.all([
-      occurrenceService.getById(occurrenceId),
-      occurrenceService.getComments(occurrenceId),
-    ]);
+    const occurrenceData = await occurrenceService.getById(occurrenceId);
 
     setOccurrence(occurrenceData);
-    setComments(commentsData);
+    setComments(occurrenceData.comments ?? []);
   };
 
   useEffect(() => {
@@ -87,8 +84,16 @@ export function OccurrenceDetails() {
 
     try {
       setActionsLoading(true);
-      await occurrenceService.toggleLike(occurrence.id);
-      await loadOccurrence();
+      const likeState = await occurrenceService.toggleLike(occurrence.id);
+      setOccurrence((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          likesCount: likeState.likesCount,
+          likedByCurrentUser: likeState.likedByCurrentUser,
+        };
+      });
     } catch (error) {
       console.error(error);
       toast.error(getErrorMessage(error, "Nao foi possivel curtir a ocorrencia"));
@@ -125,9 +130,38 @@ export function OccurrenceDetails() {
 
     try {
       setSubmittingComment(true);
-      await occurrenceService.addComment(occurrence.id, commentText.trim());
+      const createdComment = await occurrenceService.addComment(occurrence.id, commentText.trim());
       setCommentText("");
-      await loadOccurrence();
+
+      setComments((prev) => [
+        ...prev,
+        {
+          id: createdComment.id,
+          userId: createdComment.userId,
+          text: createdComment.text,
+          createdAt: createdComment.createdAt,
+          user: createdComment.user,
+        },
+      ]);
+
+      setOccurrence((prev) => {
+        if (!prev) return prev;
+
+        return {
+          ...prev,
+          comments: [
+            ...(prev.comments ?? []),
+            {
+              id: createdComment.id,
+              userId: createdComment.userId,
+              text: createdComment.text,
+              createdAt: createdComment.createdAt,
+              user: createdComment.user,
+            },
+          ],
+        };
+      });
+
       toast.success("Comentario adicionado");
     } catch (error) {
       console.error(error);

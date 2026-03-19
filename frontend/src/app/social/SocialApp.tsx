@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { RouterProvider } from "react-router";
 import { createSocialRouter } from "./routes";
 
@@ -6,5 +7,7 @@ interface SocialAppProps {
 }
 
 export default function SocialApp({ onLogout }: SocialAppProps) {
-  return <RouterProvider router={createSocialRouter(onLogout)} />;
+  const router = useMemo(() => createSocialRouter(onLogout), [onLogout]);
+
+  return <RouterProvider router={router} />;
 }

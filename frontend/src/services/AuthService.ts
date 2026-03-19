@@ -11,9 +11,7 @@ class AuthService {
   private static instance: AuthService;
   private user: User | null = null;
 
-  private constructor() {
-    this.checkCurrentUser();
-  }
+  private constructor() {}
 
   public static getInstance(): AuthService {
     if (!AuthService.instance) {

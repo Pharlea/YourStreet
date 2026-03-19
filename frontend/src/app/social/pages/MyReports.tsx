@@ -4,7 +4,6 @@ import { Link } from "react-router";
 import { toast } from "sonner";
 import { Card, CardContent } from "../components/ui/card";
 import occurrenceService, { OccurrenceSummary } from "../../../services/OccurrenceService";
-import AuthService from "../../../services/AuthService";
 
 const typeLabel: Record<string, string> = {
   buraco: "Buraco",
@@ -36,12 +35,7 @@ export function MyReports() {
   const [loading, setLoading] = useState(true);
 
   const loadReports = async () => {
-    const authService = AuthService.getInstance();
-    const user = authService.getCurrentUser() || (await authService.checkCurrentUser());
-    const allReports = await occurrenceService.list();
-    const userId = user ? Number(user.id) : null;
-
-    const userReports = allReports.filter((report) => (userId ? report.userId === userId : false));
+    const userReports = await occurrenceService.list({ onlyMine: true, includeImage: true, take: 200 });
     setReports(userReports);
   };
 

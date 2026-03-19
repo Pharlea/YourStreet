@@ -56,7 +56,7 @@ export function MapView() {
 
   const loadOccurrences = async () => {
     try {
-      const data = await occurrenceService.list();
+      const data = await occurrenceService.list({ take: 200 });
       setOccurrences(data);
     } catch (error) {
       console.error(error);

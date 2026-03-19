@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using your_street_server.Data;
 using DotNetEnv;
+using Microsoft.AspNetCore.ResponseCompression;
 
 // Carregar variáveis de ambiente do arquivo .env (se existir)
 if (File.Exists(".env"))
@@ -25,8 +26,15 @@ var dbConnectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
     ?? builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string nao configurada. Defina CONNECTION_STRING ou ConnectionStrings:DefaultConnection.");
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddDbContextPool<AppDbContext>(options =>
     options.UseNpgsql(dbConnectionString));
+
+builder.Services.AddMemoryCache();
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "application/json" });
+});
 
 // Configurar cache para sessões
 builder.Services.AddDistributedMemoryCache();
@@ -84,6 +92,7 @@ else
 
 // Aplicar CORS
 app.UseCors();
+app.UseResponseCompression();
 
 // Usar sessões (deve vir antes da autorização)
 app.UseSession();

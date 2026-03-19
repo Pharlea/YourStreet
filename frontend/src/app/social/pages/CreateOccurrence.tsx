@@ -16,6 +16,47 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
+async function compressImage(file: File, maxSize = 1280, quality = 0.72): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxSize || height > maxSize) {
+        const ratio = width > height ? maxSize / width : maxSize / height;
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Falha ao processar imagem"));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressed = canvas.toDataURL("image/jpeg", quality);
+      URL.revokeObjectURL(objectUrl);
+      resolve(compressed);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Falha ao carregar imagem"));
+    };
+
+    img.src = objectUrl;
+  });
+}
+
 export function CreateOccurrence() {
   const [type, setType] = useState<OccurrenceType>("buraco");
   const [description, setDescription] = useState("");
@@ -28,7 +69,8 @@ export function CreateOccurrence() {
     if (!files || files.length === 0) return;
 
     try {
-      const base64 = await fileToBase64(files[0]);
+      const file = files[0];
+      const base64 = file.type.startsWith("image/") ? await compressImage(file) : await fileToBase64(file);
       setImage(base64);
     } catch (error) {
       console.error(error);

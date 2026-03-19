@@ -38,19 +38,14 @@ export const useAuth = (): UseAuthReturn => {
   };
 
   useEffect(() => {
-    checkAuth();
-    
     // Verificar se o usuário voltou do login
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('login') === 'success') {
       // Limpar o parâmetro da URL
       window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Recarregar o estado de autenticação
-      setTimeout(() => {
-        checkAuth();
-      }, 100);
     }
+
+    checkAuth();
   }, []);
 
   return {
