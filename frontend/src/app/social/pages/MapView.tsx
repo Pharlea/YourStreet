@@ -46,6 +46,10 @@ export function MapView() {
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
+  const invalidateMapSize = () => {
+    mapRef.current?.invalidateSize({ pan: false, debounceMoveend: true });
+  };
+
   const filteredOccurrences = occurrences.filter((occurrence) => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
@@ -84,7 +88,21 @@ export function MapView() {
 
     markersLayerRef.current = L.layerGroup().addTo(map);
 
+    // Leaflet may initialize before layout settles; force size sync for reliable hit-testing.
+    const initialSyncTimer = window.setTimeout(invalidateMapSize, 0);
+    const secondSyncTimer = window.setTimeout(invalidateMapSize, 250);
+
+    const handleResize = () => invalidateMapSize();
+    window.addEventListener("resize", handleResize);
+
+    const observer = new ResizeObserver(() => invalidateMapSize());
+    observer.observe(mapContainerRef.current);
+
     return () => {
+      window.clearTimeout(initialSyncTimer);
+      window.clearTimeout(secondSyncTimer);
+      window.removeEventListener("resize", handleResize);
+      observer.disconnect();
       map.remove();
       mapRef.current = null;
       markersLayerRef.current = null;
@@ -102,6 +120,9 @@ export function MapView() {
       marker.bindPopup(
         `<div style="font-family:sans-serif;"><p style="font-weight:600;margin:0 0 4px 0;font-size:14px;">${typeLabel[occurrence.type] || occurrence.type}</p><p style="color:#6b7280;margin:0;font-size:12px;">${occurrence.address || "Endereco nao informado"}</p></div>`,
       );
+
+      marker.on("mouseover", () => marker.openPopup());
+      marker.on("mouseout", () => marker.closePopup());
 
       marker.on("click", () => {
         navigate(`/ocorrencia/${occurrence.id}`);
@@ -126,8 +147,8 @@ export function MapView() {
 
   return (
     <div className="h-[calc(100vh-3.5rem-4rem)] relative">
-      <div className="absolute top-4 left-4 right-4 z-[400]">
-        <div className="relative max-w-md mx-auto">
+      <div className="absolute top-4 left-4 right-4 z-[400] pointer-events-none">
+        <div className="relative max-w-md mx-auto pointer-events-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             type="text"
@@ -141,7 +162,7 @@ export function MapView() {
 
       <button
         onClick={handleLocate}
-        className="absolute bottom-24 right-4 z-[400] bg-white p-3 rounded-full shadow-lg hover:bg-accent transition-colors"
+        className="absolute bottom-24 right-4 z-[400] bg-white p-3 rounded-full shadow-lg hover:bg-accent transition-colors pointer-events-auto"
         aria-label="Centralizar na minha localizacao"
       >
         <Locate className="h-6 w-6 text-primary" />
@@ -150,8 +171,8 @@ export function MapView() {
       <div ref={mapContainerRef} className="w-full h-full" />
 
       {!loading && filteredOccurrences.length > 0 && (
-        <div className="absolute left-3 right-3 bottom-24 z-[350] max-w-md mx-auto">
-          <div className="bg-white/95 rounded-xl shadow-lg border border-border p-2 max-h-40 overflow-y-auto space-y-1.5">
+        <div className="absolute left-3 right-3 bottom-24 z-[350] max-w-md mx-auto pointer-events-none">
+          <div className="bg-white/95 rounded-xl shadow-lg border border-border p-2 max-h-40 overflow-y-auto space-y-1.5 pointer-events-auto">
             {filteredOccurrences.map((occurrence) => (
               <button
                 key={occurrence.id}
