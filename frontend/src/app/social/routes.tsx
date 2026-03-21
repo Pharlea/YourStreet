@@ -38,7 +38,7 @@ export function createSocialRouter(onLogout: () => Promise<void>) {
       ),
     },
     {
-      path: "/minhas-reclamacoes",
+      path: "/ocorrencias",
       element: (
         <Layout onLogout={onLogout}>
           <MyReports />

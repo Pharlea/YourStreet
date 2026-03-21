@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Heart, MapPin, MessageCircle, Trash2 } from "lucide-react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -12,14 +12,53 @@ const typeLabel: Record<string, string> = {
   acidente: "Acidente",
 };
 
+type FilterMode = "nearby" | "my" | "all";
+type SortMode = "likes" | "newest" | "oldest";
+
 const statusLabels = {
   pending: { label: "Pendente", color: "bg-amber-500" },
 };
+
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusKm * c;
+}
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
+  });
+}
+
+function formatDistance(value: number): string {
+  if (value < 1) {
+    return `${Math.round(value * 1000)} m`;
+  }
+  return `${value.toFixed(1)} km`;
+}
+
+async function getCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocalização não suportada neste navegador"));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 60000,
+    });
   });
 }
 
@@ -34,16 +73,95 @@ function getErrorMessage(error: unknown, fallback: string): string {
 export function MyReports() {
   const [reports, setReports] = useState<Array<OccurrenceSummary>>([]);
   const [loading, setLoading] = useState(true);
+  const [resolvingNearby, setResolvingNearby] = useState(false);
+  const [filterMode, setFilterMode] = useState<FilterMode>("nearby");
+  const [sortMode, setSortMode] = useState<SortMode>("likes");
+  const [userId, setUserId] = useState<number | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [distanceById, setDistanceById] = useState<Record<number, number | null>>({});
+
+  const geocodeCacheRef = useRef<Map<string, [number, number] | null>>(new Map());
+
+  const geocodeAddress = async (address: string): Promise<[number, number] | null> => {
+    const normalized = address.trim().toLowerCase();
+    if (!normalized) return null;
+
+    const cached = geocodeCacheRef.current.get(normalized);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        limit: "1",
+        countrycodes: "br",
+        q: address,
+      });
+
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        geocodeCacheRef.current.set(normalized, null);
+        return null;
+      }
+
+      const data = (await response.json()) as Array<{ lat: string; lon: string }>;
+      if (!Array.isArray(data) || data.length === 0) {
+        geocodeCacheRef.current.set(normalized, null);
+        return null;
+      }
+
+      const lat = Number(data[0].lat);
+      const lng = Number(data[0].lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        geocodeCacheRef.current.set(normalized, null);
+        return null;
+      }
+
+      const coordinates: [number, number] = [lat, lng];
+      geocodeCacheRef.current.set(normalized, coordinates);
+      return coordinates;
+    } catch {
+      geocodeCacheRef.current.set(normalized, null);
+      return null;
+    }
+  };
 
   const loadReports = async () => {
     const authService = AuthService.getInstance();
     const user = authService.getCurrentUser() || (await authService.checkCurrentUser());
-    const allReports = await occurrenceService.list();
-    const userId = user ? Number(user.id) : null;
+    setUserId(user ? Number(user.id) : null);
 
-    const userReports = allReports.filter((report) => (userId ? report.userId === userId : false));
-    setReports(userReports);
+    const allReports = await occurrenceService.list();
+    setReports(allReports);
   };
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const position = await getCurrentPosition();
+        if (!mounted) return;
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      } catch {
+        if (!mounted) return;
+        toast.warning("Não foi possível acessar sua localização. O filtro Próximas pode ficar vazio.");
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -53,22 +171,99 @@ export function MyReports() {
         await loadReports();
       } catch (error) {
         console.error(error);
-        toast.error(getErrorMessage(error, "Nao foi possivel carregar suas ocorrencias"));
+        toast.error(getErrorMessage(error, "Não foi possível carregar suas ocorrências"));
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const resolveDistances = async () => {
+      if (!userLocation || reports.length === 0) {
+        setDistanceById({});
+        return;
+      }
+
+      setResolvingNearby(true);
+
+      const pairs = await Promise.all(
+        reports.map(async (report) => {
+          const address = report.address?.trim() ?? "";
+          if (!address) return [report.id, null] as const;
+
+          const coordinates = await geocodeAddress(address);
+          if (!coordinates) return [report.id, null] as const;
+
+          const [lat, lng] = coordinates;
+          const distance = haversineDistanceKm(userLocation.lat, userLocation.lng, lat, lng);
+          return [report.id, distance] as const;
+        }),
+      );
+
+      if (!mounted) return;
+
+      const nextDistances: Record<number, number | null> = {};
+      pairs.forEach(([id, distance]) => {
+        nextDistances[id] = distance;
+      });
+      setDistanceById(nextDistances);
+      setResolvingNearby(false);
+    };
+
+    void resolveDistances();
+
+    return () => {
+      mounted = false;
+    };
+  }, [reports, userLocation]);
+
+  const processedReports = useMemo(() => {
+    const byFilter = reports.filter((report) => {
+      if (filterMode === "my") {
+        return userId !== null && report.userId === userId;
+      }
+
+      if (filterMode === "nearby") {
+        const distance = distanceById[report.id];
+        return typeof distance === "number" && distance <= 16;
+      }
+
+      return true;
+    });
+
+    return [...byFilter].sort((a, b) => {
+      if (sortMode === "likes") {
+        return b.likesCount - a.likesCount;
+      }
+
+      const timestampA = new Date(a.createdAt).getTime();
+      const timestampB = new Date(b.createdAt).getTime();
+
+      if (sortMode === "newest") {
+        return timestampB - timestampA;
+      }
+
+      return timestampA - timestampB;
+    });
+  }, [distanceById, filterMode, reports, sortMode, userId]);
+
   const handleDelete = async (id: number) => {
-    if (confirm("Deseja realmente excluir esta ocorrencia?")) {
+    if (confirm("Deseja realmente excluir esta ocorrência?")) {
       try {
         await occurrenceService.delete(id);
         setReports((prev) => prev.filter((report) => report.id !== id));
-        toast.success("Ocorrencia excluida");
+        setDistanceById((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        toast.success("Ocorrência excluída");
       } catch (error) {
         console.error(error);
-        toast.error(getErrorMessage(error, "Nao foi possivel excluir a ocorrencia"));
+        toast.error(getErrorMessage(error, "Não foi possível excluir a ocorrência"));
       }
     }
   };
@@ -77,21 +272,74 @@ export function MyReports() {
     <div className="h-[calc(100vh-3.5rem-4rem)] overflow-y-auto pb-6">
       <div className="max-w-md mx-auto px-4 pt-6">
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold mb-2">Minhas Ocorrencias</h2>
-          <p className="text-muted-foreground text-sm">Acompanhe o status das ocorrencias reportadas</p>
+          <h2 className="text-2xl font-semibold mb-2">Ocorrências</h2>
+          <p className="text-muted-foreground text-sm">Fique sabendo de tudo o que acontece</p>
+        </div>
+
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          <button
+            onClick={() => setFilterMode("nearby")}
+            className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              filterMode === "nearby" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            Próximas (16 km)
+          </button>
+          <button
+            onClick={() => setFilterMode("my")}
+            className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              filterMode === "my" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            Minhas ocorrências
+          </button>
+          <button
+            onClick={() => setFilterMode("all")}
+            className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+              filterMode === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            Todas
+          </button>
+        </div>
+
+        <div className="mb-6">
+          <label htmlFor="sort-mode" className="block text-xs text-muted-foreground mb-1">
+            Ordem
+          </label>
+          <select
+            id="sort-mode"
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as SortMode)}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="likes">Mais curtidas</option>
+            <option value="newest">Mais recentes</option>
+            <option value="oldest">Mais antigas</option>
+          </select>
         </div>
 
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">Carregando suas ocorrencias...</p>
+            <p className="text-muted-foreground">Carregando suas ocorrências...</p>
           </div>
-        ) : reports.length === 0 ? (
+        ) : resolvingNearby && filterMode === "nearby" ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">Voce ainda nao criou nenhuma ocorrencia</p>
+            <p className="text-muted-foreground">Calculando ocorrências próximas...</p>
+          </div>
+        ) : processedReports.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              {filterMode === "nearby"
+                ? "Nenhuma ocorrência encontrada em até 16 km da sua localização"
+                : filterMode === "my"
+                  ? "Você ainda não criou nenhuma ocorrência"
+                  : "Nenhuma ocorrência disponível"}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {reports.map((report) => (
+            {processedReports.map((report) => (
               <Card key={report.id} className="overflow-hidden">
                 <CardContent className="p-0 [&:last-child]:pb-0">
                   <Link to={`/ocorrencia/${report.id}`} className="w-full text-left block">
@@ -119,15 +367,18 @@ export function MyReports() {
                               handleDelete(report.id);
                             }}
                             className="p-1.5 hover:bg-destructive/10 rounded-lg transition-colors shrink-0"
-                            aria-label="Excluir ocorrencia"
+                            aria-label="Excluir ocorrência"
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </button>
                         </div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
                           <MapPin className="h-3 w-3" />
-                          <span className="truncate">{report.address || "Endereco nao informado"}</span>
+                          <span className="truncate">{report.address || "Endereço não informado"}</span>
                         </div>
+                        {filterMode === "nearby" && typeof distanceById[report.id] === "number" && (
+                          <p className="text-xs text-primary mb-2">Aproximadamente {formatDistance(distanceById[report.id]!)} de você</p>
+                        )}
                         <p className="text-xs text-muted-foreground mb-2">{formatDate(report.createdAt)}</p>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
