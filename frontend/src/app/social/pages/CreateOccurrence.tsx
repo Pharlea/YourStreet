@@ -13,6 +13,14 @@ interface AddressSuggestion {
   value: string;
 }
 
+const HERE_API_KEY = import.meta.env.VITE_HERE_API_KEY as string | undefined;
+const DEFAULT_SEARCH_AT = "-23.5505,-46.6333";
+const LAST_LOCATION_STORAGE_KEY = "yourstreet.last-user-location";
+
+function normalizeAddress(text: string): string {
+  return text.trim().toLowerCase();
+}
+
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -31,7 +39,54 @@ export function CreateOccurrence() {
   const [loadingCurrentAddress, setLoadingCurrentAddress] = useState(true);
   const [image, setImage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [searchAt, setSearchAt] = useState<string>(DEFAULT_SEARCH_AT);
   const debounceRef = useRef<number | null>(null);
+  const selectedSuggestionRef = useRef<string>("");
+  const requestIdRef = useRef(0);
+  const addressValidationCacheRef = useRef<Map<string, boolean>>(new Map());
+
+  const validateAddressExists = async (address: string): Promise<boolean> => {
+    if (!HERE_API_KEY) {
+      return true;
+    }
+
+    const normalized = normalizeAddress(address);
+    if (!normalized) return false;
+
+    if (addressValidationCacheRef.current.has(normalized)) {
+      return addressValidationCacheRef.current.get(normalized) ?? false;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        q: address,
+        limit: "1",
+        lang: "pt-BR",
+        in: "countryCode:BRA",
+        apiKey: HERE_API_KEY,
+      });
+
+      const response = await fetch(`https://geocode.search.hereapi.com/v1/geocode?${params.toString()}`);
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = (await response.json()) as {
+        items?: Array<{
+          title?: string;
+          address?: {
+            label?: string;
+          };
+        }>;
+      };
+
+      const found = (data.items?.length ?? 0) > 0;
+      addressValidationCacheRef.current.set(normalized, found);
+      return found;
+    } catch {
+      return false;
+    }
+  };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -51,6 +106,12 @@ export function CreateOccurrence() {
 
     if (!description || !location) {
       toast.error("Por favor, preencha todos os campos obrigatorios");
+      return;
+    }
+
+    const locationExists = await validateAddressExists(location);
+    if (!locationExists) {
+      toast.error("Endereco nao encontrado. Escolha um endereco valido da lista ou refine o texto.");
       return;
     }
 
@@ -81,6 +142,11 @@ export function CreateOccurrence() {
     let mounted = true;
 
     const prefillCurrentAddress = async () => {
+      if (!HERE_API_KEY) {
+        if (mounted) setLoadingCurrentAddress(false);
+        return;
+      }
+
       if (!navigator.geolocation) {
         if (mounted) setLoadingCurrentAddress(false);
         return;
@@ -95,37 +161,57 @@ export function CreateOccurrence() {
           });
         });
 
+        const at = `${position.coords.latitude},${position.coords.longitude}`;
+        if (mounted) {
+          setSearchAt(at);
+        }
+
+        try {
+          window.localStorage.setItem(
+            LAST_LOCATION_STORAGE_KEY,
+            JSON.stringify({ lat: position.coords.latitude, lng: position.coords.longitude }),
+          );
+        } catch {
+          // Ignore storage failures.
+        }
+
         const params = new URLSearchParams({
-          format: "jsonv2",
-          lat: String(position.coords.latitude),
-          lon: String(position.coords.longitude),
-          addressdetails: "1",
+          at,
+          limit: "1",
+          lang: "pt-BR",
+          apiKey: HERE_API_KEY,
         });
 
-        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`);
+        const response = await fetch(`https://revgeocode.search.hereapi.com/v1/revgeocode?${params.toString()}`);
         if (!response.ok) {
           if (mounted) setLoadingCurrentAddress(false);
           return;
         }
 
         const data = (await response.json()) as {
-          address?: {
-            road?: string;
-            house_number?: string;
-          };
-          display_name?: string;
+          items?: Array<{
+            address?: {
+              street?: string;
+              houseNumber?: string;
+              label?: string;
+            };
+            title?: string;
+          }>;
         };
 
         if (!mounted) return;
 
-        const road = data.address?.road?.trim() ?? "";
-        const number = data.address?.house_number?.trim() ?? "";
-        const shortAddress = [road, number].filter(Boolean).join(", ");
+        const item = data.items?.[0];
+        const street = item?.address?.street?.trim() ?? "";
+        const number = item?.address?.houseNumber?.trim() ?? "";
+        const shortAddress = [street, number].filter(Boolean).join(", ");
 
         if (shortAddress) {
           setLocation(shortAddress);
-        } else if (data.display_name) {
-          setLocation(data.display_name);
+        } else if (item?.address?.label) {
+          setLocation(item.address.label);
+        } else if (item?.title) {
+          setLocation(item.title);
         }
       } catch {
         // Keep manual input when user denies permission or reverse lookup fails.
@@ -147,54 +233,94 @@ export function CreateOccurrence() {
     }
 
     const query = location.trim();
+    const normalizedQuery = normalizeAddress(query);
     if (query.length < 3) {
       setSuggestions([]);
       setLoadingSuggestions(false);
       return;
     }
 
+    if (normalizedQuery === normalizeAddress(selectedSuggestionRef.current)) {
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      return;
+    }
+
+    const currentRequestId = ++requestIdRef.current;
+
     debounceRef.current = window.setTimeout(async () => {
       try {
+        if (!HERE_API_KEY) {
+          setSuggestions([]);
+          return;
+        }
+
         setLoadingSuggestions(true);
         const params = new URLSearchParams({
-          format: "jsonv2",
-          limit: "5",
-          countrycodes: "br",
-          addressdetails: "1",
           q: query,
+          at: searchAt,
+          in: "countryCode:BRA",
+          lang: "pt-BR",
+          limit: "5",
+          apiKey: HERE_API_KEY,
         });
 
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+        const response = await fetch(`https://autosuggest.search.hereapi.com/v1/autosuggest?${params.toString()}`);
         if (!response.ok) {
+          if (currentRequestId !== requestIdRef.current) return;
           setSuggestions([]);
           return;
         }
 
         const data = (await response.json()) as Array<{
-          place_id: number;
-          display_name: string;
+          id?: string;
+          title?: string;
+          resultType?: string;
           address?: {
-            road?: string;
-            house_number?: string;
+            label?: string;
+            street?: string;
+            houseNumber?: string;
           };
-        }>;
-
-        const nextSuggestions = data.map((item) => {
-          const road = item.address?.road?.trim() ?? "";
-          const number = item.address?.house_number?.trim() ?? "";
-          const shortAddress = [road, number].filter(Boolean).join(", ");
-
-          return {
-            id: String(item.place_id),
-            displayName: item.display_name,
-            value: shortAddress || item.display_name,
+        }> | { items?: Array<{
+          id?: string;
+          title?: string;
+          resultType?: string;
+          address?: {
+            label?: string;
+            street?: string;
+            houseNumber?: string;
           };
-        });
+        }> };
+
+        const items = Array.isArray(data) ? data : data.items ?? [];
+
+        const nextSuggestions = items
+          .filter((item) => item.resultType !== "chain")
+          .map((item, index) => {
+            const street = item.address?.street?.trim() ?? "";
+            const number = item.address?.houseNumber?.trim() ?? "";
+            const shortAddress = [street, number].filter(Boolean).join(", ");
+            const fallbackLabel = item.address?.label || item.title || "";
+
+            return {
+              id: item.id || `${index}-${fallbackLabel}`,
+              displayName: fallbackLabel,
+              value: shortAddress || fallbackLabel,
+            };
+          })
+          .filter((suggestion) => suggestion.value.trim().length > 0)
+          .filter((suggestion) => normalizeAddress(suggestion.value) !== normalizedQuery);
+
+        if (currentRequestId !== requestIdRef.current) {
+          return;
+        }
 
         setSuggestions(nextSuggestions);
       } catch {
+        if (currentRequestId !== requestIdRef.current) return;
         setSuggestions([]);
       } finally {
+        if (currentRequestId !== requestIdRef.current) return;
         setLoadingSuggestions(false);
       }
     }, 350);
@@ -204,7 +330,7 @@ export function CreateOccurrence() {
         window.clearTimeout(debounceRef.current);
       }
     };
-  }, [location]);
+  }, [location, searchAt]);
 
   return (
     <div className="h-[calc(100vh-3.5rem-4rem)] overflow-y-auto pb-6">
@@ -251,7 +377,10 @@ export function CreateOccurrence() {
                 type="text"
                 placeholder="Rua, bairro ou endereco"
                 value={location}
-                onChange={(event) => setLocation(event.target.value)}
+                onChange={(event) => {
+                  selectedSuggestionRef.current = "";
+                  setLocation(event.target.value);
+                }}
                 className="pl-10 bg-input-background border-0"
                 required
               />
@@ -269,7 +398,13 @@ export function CreateOccurrence() {
                       key={suggestion.id}
                       type="button"
                       onClick={() => {
+                        selectedSuggestionRef.current = suggestion.value;
+                        requestIdRef.current += 1;
+                        if (debounceRef.current) {
+                          window.clearTimeout(debounceRef.current);
+                        }
                         setLocation(suggestion.value);
+                        setLoadingSuggestions(false);
                         setSuggestions([]);
                       }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"

@@ -6,6 +6,8 @@ import { Card, CardContent } from "../components/ui/card";
 import occurrenceService, { OccurrenceSummary } from "../../../services/OccurrenceService";
 import AuthService from "../../../services/AuthService";
 
+const HERE_API_KEY = import.meta.env.VITE_HERE_API_KEY;
+
 const typeLabel: Record<string, string> = {
   buraco: "Buraco",
   alagamento: "Alagamento",
@@ -92,32 +94,43 @@ export function MyReports() {
     }
 
     try {
+      if (!HERE_API_KEY) {
+        geocodeCacheRef.current.set(normalized, null);
+        return null;
+      }
+
       const params = new URLSearchParams({
-        format: "jsonv2",
-        limit: "1",
-        countrycodes: "br",
         q: address,
+        limit: "1",
+        lang: "pt-BR",
+        in: "countryCode:BRA",
+        apiKey: HERE_API_KEY,
       });
 
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
-        headers: {
-          Accept: "application/json",
-        },
-      });
+      const response = await fetch(`https://geocode.search.hereapi.com/v1/geocode?${params.toString()}`);
 
       if (!response.ok) {
         geocodeCacheRef.current.set(normalized, null);
         return null;
       }
 
-      const data = (await response.json()) as Array<{ lat: string; lon: string }>;
-      if (!Array.isArray(data) || data.length === 0) {
+      const data = (await response.json()) as {
+        items?: Array<{
+          position?: {
+            lat: number;
+            lng: number;
+          };
+        }>;
+      };
+
+      const firstItem = data.items?.[0];
+      if (!firstItem?.position) {
         geocodeCacheRef.current.set(normalized, null);
         return null;
       }
 
-      const lat = Number(data[0].lat);
-      const lng = Number(data[0].lon);
+      const lat = Number(firstItem.position.lat);
+      const lng = Number(firstItem.position.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         geocodeCacheRef.current.set(normalized, null);
         return null;
