@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, MapPin, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "../components/ui/card";
@@ -6,6 +6,12 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import occurrenceService, { OccurrenceType } from "../../../services/OccurrenceService";
+
+interface AddressSuggestion {
+  id: string;
+  displayName: string;
+  value: string;
+}
 
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -20,8 +26,12 @@ export function CreateOccurrence() {
   const [type, setType] = useState<OccurrenceType>("buraco");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  const [suggestions, setSuggestions] = useState<Array<AddressSuggestion>>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [loadingCurrentAddress, setLoadingCurrentAddress] = useState(true);
   const [image, setImage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const debounceRef = useRef<number | null>(null);
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -57,6 +67,7 @@ export function CreateOccurrence() {
       setType("buraco");
       setDescription("");
       setLocation("");
+      setSuggestions([]);
       setImage(null);
     } catch (error) {
       console.error(error);
@@ -65,6 +76,135 @@ export function CreateOccurrence() {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const prefillCurrentAddress = async () => {
+      if (!navigator.geolocation) {
+        if (mounted) setLoadingCurrentAddress(false);
+        return;
+      }
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 30000,
+          });
+        });
+
+        const params = new URLSearchParams({
+          format: "jsonv2",
+          lat: String(position.coords.latitude),
+          lon: String(position.coords.longitude),
+          addressdetails: "1",
+        });
+
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`);
+        if (!response.ok) {
+          if (mounted) setLoadingCurrentAddress(false);
+          return;
+        }
+
+        const data = (await response.json()) as {
+          address?: {
+            road?: string;
+            house_number?: string;
+          };
+          display_name?: string;
+        };
+
+        if (!mounted) return;
+
+        const road = data.address?.road?.trim() ?? "";
+        const number = data.address?.house_number?.trim() ?? "";
+        const shortAddress = [road, number].filter(Boolean).join(", ");
+
+        if (shortAddress) {
+          setLocation(shortAddress);
+        } else if (data.display_name) {
+          setLocation(data.display_name);
+        }
+      } catch {
+        // Keep manual input when user denies permission or reverse lookup fails.
+      } finally {
+        if (mounted) setLoadingCurrentAddress(false);
+      }
+    };
+
+    void prefillCurrentAddress();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) {
+      window.clearTimeout(debounceRef.current);
+    }
+
+    const query = location.trim();
+    if (query.length < 3) {
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      return;
+    }
+
+    debounceRef.current = window.setTimeout(async () => {
+      try {
+        setLoadingSuggestions(true);
+        const params = new URLSearchParams({
+          format: "jsonv2",
+          limit: "5",
+          countrycodes: "br",
+          addressdetails: "1",
+          q: query,
+        });
+
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+        if (!response.ok) {
+          setSuggestions([]);
+          return;
+        }
+
+        const data = (await response.json()) as Array<{
+          place_id: number;
+          display_name: string;
+          address?: {
+            road?: string;
+            house_number?: string;
+          };
+        }>;
+
+        const nextSuggestions = data.map((item) => {
+          const road = item.address?.road?.trim() ?? "";
+          const number = item.address?.house_number?.trim() ?? "";
+          const shortAddress = [road, number].filter(Boolean).join(", ");
+
+          return {
+            id: String(item.place_id),
+            displayName: item.display_name,
+            value: shortAddress || item.display_name,
+          };
+        });
+
+        setSuggestions(nextSuggestions);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }, 350);
+
+    return () => {
+      if (debounceRef.current) {
+        window.clearTimeout(debounceRef.current);
+      }
+    };
+  }, [location]);
 
   return (
     <div className="h-[calc(100vh-3.5rem-4rem)] overflow-y-auto pb-6">
@@ -116,6 +256,30 @@ export function CreateOccurrence() {
                 required
               />
             </div>
+            {loadingCurrentAddress && (
+              <p className="text-xs text-muted-foreground">Tentando preencher com sua localização atual...</p>
+            )}
+            {(loadingSuggestions || suggestions.length > 0) && (
+              <div className="rounded-md border border-border bg-background shadow-sm overflow-hidden">
+                {loadingSuggestions ? (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Buscando sugestões de endereço...</p>
+                ) : (
+                  suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.id}
+                      type="button"
+                      onClick={() => {
+                        setLocation(suggestion.value);
+                        setSuggestions([]);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                    >
+                      {suggestion.value}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

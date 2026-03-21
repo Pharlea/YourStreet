@@ -17,6 +17,8 @@ type OccurrenceOnMap = OccurrenceSummary & {
   coordinates: [number, number];
 };
 
+const NEARBY_RADIUS_KM = 16;
+
 function escapeHtml(text: string): string {
   return text
     .replaceAll("&", "&amp;")
@@ -41,11 +43,26 @@ function fallbackCoordinates(id: number, index: number): [number, number] {
   ];
 }
 
+function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusKm * c;
+}
+
 export function MapView() {
   const [occurrences, setOccurrences] = useState<Array<OccurrenceSummary>>([]);
   const [mapOccurrences, setMapOccurrences] = useState<Array<OccurrenceOnMap>>([]);
   const [loading, setLoading] = useState(true);
   const [resolvingCoordinates, setResolvingCoordinates] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -54,8 +71,15 @@ export function MapView() {
   const geocodeCacheRef = useRef<Map<string, [number, number] | null>>(new Map());
 
   const filteredOccurrences = useMemo(() => {
-    return mapOccurrences;
-  }, [mapOccurrences]);
+    if (!userLocation) {
+      return mapOccurrences;
+    }
+
+    return mapOccurrences.filter((occurrence) => {
+      const [lat, lng] = occurrence.coordinates;
+      return haversineDistanceKm(userLocation.lat, userLocation.lng, lat, lng) <= NEARBY_RADIUS_KM;
+    });
+  }, [mapOccurrences, userLocation]);
 
   const fetchCoordinates = async (address: string): Promise<[number, number] | null> => {
     const normalized = address.trim().toLowerCase();
@@ -167,6 +191,39 @@ export function MapView() {
   }, [occurrences]);
 
   useEffect(() => {
+    let mounted = true;
+
+    const resolveUserLocation = async () => {
+      if (!navigator.geolocation) return;
+
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000,
+          });
+        });
+
+        if (!mounted) return;
+
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      } catch {
+        // Keep default behavior when location permission is not granted.
+      }
+    };
+
+    void resolveUserLocation();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
@@ -223,6 +280,11 @@ export function MapView() {
       const [lat, lng] = occurrence.coordinates;
       const label = typeLabel[occurrence.type] || occurrence.type;
       const address = occurrence.address || "Endereco nao informado";
+      const title = `Ocorrência de ${label}`;
+      const description = occurrence.description || "Sem descrição informada.";
+      const imageHtml = occurrence.imageBase64
+        ? `<img src="${occurrence.imageBase64}" alt="Foto da ocorrência" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
+        : "";
 
       const marker = L.circleMarker([lat, lng], {
         radius: 10,
@@ -239,7 +301,7 @@ export function MapView() {
         opacity: 0.95,
       });
 
-      const popupHtml = `<div style="font-family:sans-serif;min-width:180px;max-width:220px;"><p style="font-size:14px;font-weight:600;margin:0 0 4px 0;">${escapeHtml(label)}</p><p style="font-size:12px;color:#4b5563;margin:0 0 10px 0;">${escapeHtml(address)}</p><a href="/ocorrencia/${occurrence.id}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:6px 10px;border-radius:8px;font-size:12px;">Abrir detalhes</a></div>`;
+      const popupHtml = `<div style="font-family:sans-serif;min-width:220px;max-width:260px;">${imageHtml}<p style="font-size:14px;font-weight:700;margin:0 0 6px 0;">${escapeHtml(title)}</p><p style="font-size:12px;color:#374151;margin:0 0 6px 0;">${escapeHtml(description)}</p><p style="font-size:12px;color:#6b7280;margin:0 0 10px 0;">${escapeHtml(address)}</p><a href="/ocorrencia/${occurrence.id}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:6px 10px;border-radius:8px;font-size:12px;">Abrir detalhes</a></div>`;
       marker.bindPopup(popupHtml, {
         closeButton: false,
       });
@@ -250,6 +312,10 @@ export function MapView() {
 
       points.push([lat, lng]);
     });
+
+    if (userLocation) {
+      points.push([userLocation.lat, userLocation.lng]);
+    }
 
     if (points.length === 1) {
       mapRef.current.setView(points[0] as L.LatLngExpression, 15, { animate: true });
@@ -262,7 +328,7 @@ export function MapView() {
       padding: [36, 36],
       animate: true,
     });
-  }, [filteredOccurrences]);
+  }, [filteredOccurrences, userLocation]);
 
   const handleLocate = () => {
     if (!mapRef.current) return;
@@ -284,6 +350,11 @@ export function MapView() {
         .addTo(mapRef.current)
         .bindPopup("Voce esta aqui")
         .openPopup();
+
+      setUserLocation({
+        lat: event.latlng.lat,
+        lng: event.latlng.lng,
+      });
     });
   };
 
@@ -311,7 +382,9 @@ export function MapView() {
       {!loading && !resolvingCoordinates && filteredOccurrences.length === 0 && (
         <div className="absolute inset-x-0 bottom-28 z-[1100] px-4 pointer-events-none">
           <div className="max-w-md mx-auto bg-white/95 rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground text-center">
-            Nenhuma ocorrencia encontrada para o filtro atual.
+            {userLocation
+              ? `Nenhuma ocorrência encontrada em um raio de ${NEARBY_RADIUS_KM} km da sua localização.`
+              : "Nenhuma ocorrência encontrada para o filtro atual."}
           </div>
         </div>
       )}
