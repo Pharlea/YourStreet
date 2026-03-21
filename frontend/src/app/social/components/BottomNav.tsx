@@ -7,7 +7,7 @@ export function BottomNav() {
   const navItems = [
     { path: "/", icon: Map, label: "Mapa" },
     { path: "/criar", icon: PlusCircle, label: "Criar" },
-    { path: "/ocorrencias", icon: FileText, label: "Ocorrências" },
+    { path: "/minhas-reclamacoes", icon: FileText, label: "Minhas" },
   ];
 
   return (
