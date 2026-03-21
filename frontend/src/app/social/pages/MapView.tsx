@@ -1,29 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Locate, Search } from "lucide-react";
+import { Loader2, Locate } from "lucide-react";
 import { toast } from "sonner";
-import { Input } from "../components/ui/input";
 import occurrenceService, { OccurrenceSummary } from "../../../services/OccurrenceService";
 
-delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
-
-const yellowIcon = new L.Icon({
-  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-
-const mapCenter: [number, number] = [-23.5505, -46.6333];
+const defaultCenter: [number, number] = [-23.5505, -46.6333];
 
 const typeLabel: Record<string, string> = {
   buraco: "Buraco",
@@ -31,63 +13,200 @@ const typeLabel: Record<string, string> = {
   acidente: "Acidente",
 };
 
-function getOccurrenceCoordinates(id: number): [number, number] {
-  const latOffset = ((id % 7) - 3) * 0.0035;
-  const lngOffset = ((id % 9) - 4) * 0.0035;
-  return [mapCenter[0] + latOffset, mapCenter[1] + lngOffset];
+type OccurrenceOnMap = OccurrenceSummary & {
+  coordinates: [number, number];
+};
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function fallbackCoordinates(id: number, index: number): [number, number] {
+  const ring = Math.floor(index / 10) + 1;
+  const slot = index % 10;
+  const angle = (slot / 10) * (Math.PI * 2);
+  const radius = 0.002 * ring;
+
+  const jitterLat = ((id % 23) - 11) * 0.0001;
+  const jitterLng = ((id % 29) - 14) * 0.0001;
+
+  return [
+    defaultCenter[0] + Math.sin(angle) * radius + jitterLat,
+    defaultCenter[1] + Math.cos(angle) * radius + jitterLng,
+  ];
 }
 
 export function MapView() {
-  const navigate = useNavigate();
   const [occurrences, setOccurrences] = useState<Array<OccurrenceSummary>>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [mapOccurrences, setMapOccurrences] = useState<Array<OccurrenceOnMap>>([]);
   const [loading, setLoading] = useState(true);
+  const [resolvingCoordinates, setResolvingCoordinates] = useState(false);
+
   const mapRef = useRef<L.Map | null>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const currentLocationRef = useRef<L.Marker | null>(null);
+  const geocodeCacheRef = useRef<Map<string, [number, number] | null>>(new Map());
 
-  const filteredOccurrences = occurrences.filter((occurrence) => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
+  const filteredOccurrences = useMemo(() => {
+    return mapOccurrences;
+  }, [mapOccurrences]);
 
-    const searchText = [occurrence.type, occurrence.description, occurrence.address].join(" ").toLowerCase();
-    return searchText.includes(query);
-  });
+  const fetchCoordinates = async (address: string): Promise<[number, number] | null> => {
+    const normalized = address.trim().toLowerCase();
+    if (!normalized) return null;
 
-  const loadOccurrences = async () => {
+    if (geocodeCacheRef.current.has(normalized)) {
+      return geocodeCacheRef.current.get(normalized) ?? null;
+    }
+
     try {
-      const data = await occurrenceService.list();
-      setOccurrences(data);
-    } catch (error) {
-      console.error(error);
-      toast.error("Nao foi possivel carregar as ocorrencias");
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        limit: "1",
+        countrycodes: "br",
+        q: address,
+      });
+
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        geocodeCacheRef.current.set(normalized, null);
+        return null;
+      }
+
+      const data = (await response.json()) as Array<{ lat: string; lon: string }>;
+      if (!Array.isArray(data) || data.length === 0) {
+        geocodeCacheRef.current.set(normalized, null);
+        return null;
+      }
+
+      const lat = Number(data[0].lat);
+      const lng = Number(data[0].lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        geocodeCacheRef.current.set(normalized, null);
+        return null;
+      }
+
+      const coords: [number, number] = [lat, lng];
+      geocodeCacheRef.current.set(normalized, coords);
+      return coords;
+    } catch {
+      geocodeCacheRef.current.set(normalized, null);
+      return null;
     }
   };
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await loadOccurrences();
-      setLoading(false);
-    })();
+    let mounted = true;
+
+    const run = async () => {
+      try {
+        setLoading(true);
+        const data = await occurrenceService.list();
+        if (!mounted) return;
+        setOccurrences(data);
+      } catch (error) {
+        console.error(error);
+        toast.error("Nao foi possivel carregar as ocorrencias");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const resolveAllCoordinates = async () => {
+      if (occurrences.length === 0) {
+        setMapOccurrences([]);
+        return;
+      }
+
+      setResolvingCoordinates(true);
+
+      const resolved: Array<OccurrenceOnMap> = [];
+
+      for (let i = 0; i < occurrences.length; i += 1) {
+        const occurrence = occurrences[i];
+        const address = occurrence.address?.trim() ?? "";
+        const coords = address ? await fetchCoordinates(address) : null;
+
+        resolved.push({
+          ...occurrence,
+          coordinates: coords ?? fallbackCoordinates(occurrence.id, i),
+        });
+      }
+
+      if (!mounted) return;
+      setMapOccurrences(resolved);
+      setResolvingCoordinates(false);
+    };
+
+    void resolveAllCoordinates();
+
+    return () => {
+      mounted = false;
+    };
+  }, [occurrences]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    const map = L.map(mapContainerRef.current).setView(mapCenter, 13);
+    const map = L.map(mapContainerRef.current, {
+      preferCanvas: true,
+      zoomControl: true,
+      inertia: true,
+      doubleClickZoom: true,
+    }).setView(defaultCenter, 12);
+
     mapRef.current = map;
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      updateWhenIdle: true,
+      keepBuffer: 4,
     }).addTo(map);
 
     markersLayerRef.current = L.layerGroup().addTo(map);
 
+    const syncSize = () => map.invalidateSize({ pan: false, debounceMoveend: true });
+    const timerA = window.setTimeout(syncSize, 0);
+    const timerB = window.setTimeout(syncSize, 180);
+    const timerC = window.setTimeout(syncSize, 600);
+
+    const onResize = () => syncSize();
+    window.addEventListener("resize", onResize);
+
+    const observer = new ResizeObserver(() => syncSize());
+    observer.observe(mapContainerRef.current);
+
     return () => {
+      window.clearTimeout(timerA);
+      window.clearTimeout(timerB);
+      window.clearTimeout(timerC);
+      window.removeEventListener("resize", onResize);
+      observer.disconnect();
       map.remove();
       mapRef.current = null;
       markersLayerRef.current = null;
+      currentLocationRef.current = null;
     };
   }, []);
 
@@ -96,84 +215,101 @@ export function MapView() {
 
     markersLayerRef.current.clearLayers();
 
-    filteredOccurrences.forEach((occurrence) => {
-      const coords = getOccurrenceCoordinates(occurrence.id);
-      const marker = L.marker(coords, { icon: yellowIcon }).addTo(markersLayerRef.current!);
-      marker.bindPopup(
-        `<div style="font-family:sans-serif;"><p style="font-weight:600;margin:0 0 4px 0;font-size:14px;">${typeLabel[occurrence.type] || occurrence.type}</p><p style="color:#6b7280;margin:0;font-size:12px;">${occurrence.address || "Endereco nao informado"}</p></div>`,
-      );
+    if (filteredOccurrences.length === 0) return;
 
-      marker.on("click", () => {
-        navigate(`/ocorrencia/${occurrence.id}`);
+    const points: Array<L.LatLngExpression> = [];
+
+    filteredOccurrences.forEach((occurrence) => {
+      const [lat, lng] = occurrence.coordinates;
+      const label = typeLabel[occurrence.type] || occurrence.type;
+      const address = occurrence.address || "Endereco nao informado";
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: 10,
+        color: "#7c5a00",
+        weight: 2,
+        fillColor: "#facc15",
+        fillOpacity: 0.95,
+      }).addTo(markersLayerRef.current!);
+
+      marker.bindTooltip(`${label} - ${address}`, {
+        direction: "top",
+        offset: [0, -10],
+        sticky: true,
+        opacity: 0.95,
       });
+
+      const popupHtml = `<div style="font-family:sans-serif;min-width:180px;max-width:220px;"><p style="font-size:14px;font-weight:600;margin:0 0 4px 0;">${escapeHtml(label)}</p><p style="font-size:12px;color:#4b5563;margin:0 0 10px 0;">${escapeHtml(address)}</p><a href="/ocorrencia/${occurrence.id}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:6px 10px;border-radius:8px;font-size:12px;">Abrir detalhes</a></div>`;
+      marker.bindPopup(popupHtml, {
+        closeButton: false,
+      });
+
+      marker.on("mouseover", () => marker.openTooltip());
+      marker.on("mouseout", () => marker.closeTooltip());
+      marker.on("click", () => marker.openPopup());
+
+      points.push([lat, lng]);
     });
-  }, [filteredOccurrences, navigate]);
+
+    if (points.length === 1) {
+      mapRef.current.setView(points[0] as L.LatLngExpression, 15, { animate: true });
+      return;
+    }
+
+    const bounds = L.latLngBounds(points);
+    mapRef.current.fitBounds(bounds, {
+      maxZoom: 15,
+      padding: [36, 36],
+      animate: true,
+    });
+  }, [filteredOccurrences]);
 
   const handleLocate = () => {
     if (!mapRef.current) return;
 
-    mapRef.current.locate({ setView: true, maxZoom: 16 });
+    mapRef.current.locate({
+      setView: true,
+      maxZoom: 16,
+      enableHighAccuracy: true,
+    });
+
     mapRef.current.once("locationfound", (event: L.LocationEvent) => {
       if (!mapRef.current) return;
 
-      L.marker(event.latlng).addTo(mapRef.current).bindPopup("Voce esta aqui").openPopup();
+      if (currentLocationRef.current) {
+        currentLocationRef.current.remove();
+      }
+
+      currentLocationRef.current = L.marker(event.latlng)
+        .addTo(mapRef.current)
+        .bindPopup("Voce esta aqui")
+        .openPopup();
     });
   };
 
-  const handleSelectOccurrence = (occurrenceId: number) => {
-    navigate(`/ocorrencia/${occurrenceId}`);
-  };
-
   return (
-    <div className="h-[calc(100vh-3.5rem-4rem)] relative">
-      <div className="absolute top-4 left-4 right-4 z-[400]">
-        <div className="relative max-w-md mx-auto">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Buscar rua, bairro ou cidade..."
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="pl-10 bg-white shadow-lg border-0"
-          />
-        </div>
-      </div>
-
+    <div className="h-[calc(100vh-3.5rem-4rem)] relative isolate">
       <button
         onClick={handleLocate}
-        className="absolute bottom-24 right-4 z-[400] bg-white p-3 rounded-full shadow-lg hover:bg-accent transition-colors"
+        className="absolute bottom-24 right-4 z-[1200] bg-white p-3 rounded-full shadow-lg hover:bg-accent transition-colors"
         aria-label="Centralizar na minha localizacao"
       >
         <Locate className="h-6 w-6 text-primary" />
       </button>
 
-      <div ref={mapContainerRef} className="w-full h-full" />
+      <div ref={mapContainerRef} className="w-full h-full relative z-0" />
 
-      {!loading && filteredOccurrences.length > 0 && (
-        <div className="absolute left-3 right-3 bottom-24 z-[350] max-w-md mx-auto">
-          <div className="bg-white/95 rounded-xl shadow-lg border border-border p-2 max-h-40 overflow-y-auto space-y-1.5">
-            {filteredOccurrences.map((occurrence) => (
-              <button
-                key={occurrence.id}
-                onClick={() => handleSelectOccurrence(occurrence.id)}
-                className="w-full text-left rounded-lg px-3 py-2 transition-colors hover:bg-accent"
-              >
-                <p className="text-sm font-medium">{typeLabel[occurrence.type] || occurrence.type}</p>
-                <p className="text-xs text-muted-foreground truncate">{occurrence.address || "Endereco nao informado"}</p>
-              </button>
-            ))}
+      {(loading || resolvingCoordinates) && (
+        <div className="absolute inset-0 z-[1100] pointer-events-none grid place-items-center">
+          <div className="bg-white/90 border border-border rounded-full px-4 py-2 shadow-md flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <p>Carregando ocorrencias...</p>
           </div>
         </div>
       )}
 
-      {loading && (
-        <div className="absolute inset-0 z-[300] bg-white/70 grid place-items-center">
-          <p className="text-sm text-muted-foreground">Carregando ocorrencias...</p>
-        </div>
-      )}
-
-      {!loading && filteredOccurrences.length === 0 && (
-        <div className="absolute inset-x-0 bottom-28 z-[300] px-4">
+      {!loading && !resolvingCoordinates && filteredOccurrences.length === 0 && (
+        <div className="absolute inset-x-0 bottom-28 z-[1100] px-4 pointer-events-none">
           <div className="max-w-md mx-auto bg-white/95 rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground text-center">
             Nenhuma ocorrencia encontrada para o filtro atual.
           </div>
