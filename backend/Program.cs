@@ -67,6 +67,8 @@ builder.Services.AddCors(options =>
         // Keep localhost origins for local development while honoring production env origins.
         allowedOrigins.Add("http://localhost:5173");
         allowedOrigins.Add("https://localhost:5173");
+        allowedOrigins.Add("http://127.0.0.1:5173");
+        allowedOrigins.Add("https://127.0.0.1:5173");
 
         builder.WithOrigins(allowedOrigins.ToArray())
                .AllowAnyMethod()

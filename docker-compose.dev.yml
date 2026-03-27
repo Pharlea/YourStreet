@@ -9,7 +9,7 @@ services:
       - CORS_ORIGIN=http://localhost:5173
       - FRONTEND_URL=http://localhost:5173
       - BACKEND_URL=http://localhost:5186
-    command: ["dotnet", "watch", "run", "--project", "your-street-server.csproj", "--urls", "http://0.0.0.0:8080"]
+    command: ["dotnet", "run", "--project", "your-street-server.csproj", "--urls", "http://0.0.0.0:8080"]
     volumes:
       - ./backend:/app
       - backend_nuget_cache:/root/.nuget/packages
