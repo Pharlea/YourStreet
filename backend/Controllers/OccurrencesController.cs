@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using your_street_server.Data;
 using your_street_server.Models;
+using your_street_server.Services;
 
 namespace your_street_server.Controllers;
 
@@ -10,12 +11,14 @@ namespace your_street_server.Controllers;
 public class OccurrencesController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IOccurrenceCategorizationService _categorizationService;
 
-    private static readonly string[] AllowedTypes = new[] { "buraco", "alagamento", "acidente" };
-
-    public OccurrencesController(AppDbContext context)
+    public OccurrencesController(
+        AppDbContext context,
+        IOccurrenceCategorizationService categorizationService)
     {
         _context = context;
+        _categorizationService = categorizationService;
     }
 
     [HttpPost]
@@ -25,14 +28,15 @@ public class OccurrencesController : ControllerBase
         if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
             return Unauthorized("Usuário não autenticado");
 
-        var normalizedType = dto.Type?.Trim().ToLowerInvariant();
-        if (string.IsNullOrEmpty(normalizedType) || !AllowedTypes.Contains(normalizedType))
-            return BadRequest("Tipo inválido");
+        if (string.IsNullOrWhiteSpace(dto.Description))
+            return BadRequest("Descricao obrigatoria para classificar a ocorrencia");
+
+        var inferredType = await _categorizationService.CategorizeAsync(dto.Description);
 
         var occ = new Occurrence
         {
             UserId = userId,
-            Type = normalizedType!,
+            Type = inferredType,
             Description = dto.Description,
             Address = dto.Address,
             ImageBase64 = dto.ImageBase64,
@@ -43,6 +47,15 @@ public class OccurrencesController : ControllerBase
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = occ.Id }, new { id = occ.Id });
+    }
+
+    [HttpGet("categories")]
+    public IActionResult ListCategories()
+    {
+        var categories = OccurrenceCategoryCatalog.All
+            .Select(item => new { key = item.Key, label = item.Label });
+
+        return Ok(categories);
     }
 
     [HttpGet]
@@ -225,7 +238,6 @@ public class OccurrencesController : ControllerBase
     // DTOs
     public class CreateOccurrenceDto
     {
-        public string Type { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Address { get; set; }
         public string? ImageBase64 { get; set; }

@@ -10,7 +10,7 @@ public class Occurrence
     public int UserId { get; set; }
     public User? User { get; set; }
 
-    // tipo: temporariamente "buraco", "alagamento", "Acidente"
+    // tipo inferido automaticamente a partir da descricao da ocorrencia
     [Required]
     [MaxLength(50)]
     public string Type { get; set; } = string.Empty;

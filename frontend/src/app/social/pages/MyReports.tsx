@@ -5,14 +5,9 @@ import { toast } from "sonner";
 import { Card, CardContent } from "../components/ui/card";
 import occurrenceService, { OccurrenceSummary } from "../../../services/OccurrenceService";
 import AuthService from "../../../services/AuthService";
+import { getOccurrenceCategoryLabel } from "../utils/occurrenceCategory";
 
 const HERE_API_KEY = import.meta.env.VITE_HERE_API_KEY;
-
-const typeLabel: Record<string, string> = {
-  buraco: "Buraco",
-  alagamento: "Alagamento",
-  acidente: "Acidente",
-};
 
 type FilterMode = "nearby" | "my" | "all";
 type SortMode = "likes" | "newest" | "oldest";
@@ -372,7 +367,7 @@ export function MyReports() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <h3 className="font-semibold text-sm line-clamp-2">{typeLabel[report.type] || report.type}</h3>
+                          <h3 className="font-semibold text-sm line-clamp-2">{getOccurrenceCategoryLabel(report.type)}</h3>
                           <button
                             onClick={(event) => {
                               event.preventDefault();

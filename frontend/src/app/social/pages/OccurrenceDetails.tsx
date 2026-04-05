@@ -5,12 +5,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import occurrenceService, { OccurrenceComment, OccurrenceDetails as OccurrenceDetailsType } from "../../../services/OccurrenceService";
-
-const typeLabel: Record<string, string> = {
-  buraco: "Buraco",
-  alagamento: "Alagamento",
-  acidente: "Acidente",
-};
+import { getOccurrenceCategoryLabel } from "../utils/occurrenceCategory";
 
 const statusLabels = {
   pending: { label: "Pendente", color: "bg-amber-500" },
@@ -101,7 +96,7 @@ export function OccurrenceDetails() {
     if (!occurrence) return;
 
     const shareData = {
-      title: typeLabel[occurrence.type] || occurrence.type,
+      title: getOccurrenceCategoryLabel(occurrence.type),
       text: occurrence.description || "Ocorrencia no YourStreet",
       url: window.location.href,
     };
@@ -179,7 +174,7 @@ export function OccurrenceDetails() {
             </span>
           </div>
 
-          <h1 className="text-2xl font-semibold mb-3">{typeLabel[occurrence.type] || occurrence.type}</h1>
+          <h1 className="text-2xl font-semibold mb-3">{getOccurrenceCategoryLabel(occurrence.type)}</h1>
 
           <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
             <MapPin className="h-4 w-4" />

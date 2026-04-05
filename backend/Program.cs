@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using your_street_server.Data;
+using your_street_server.Services;
 using DotNetEnv;
 
 // Carregar variáveis de ambiente do arquivo .env (se existir)
@@ -27,6 +28,8 @@ var dbConnectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(dbConnectionString));
+
+builder.Services.AddHttpClient<IOccurrenceCategorizationService, GeminiOccurrenceCategorizationService>();
 
 // Configurar cache para sessões
 builder.Services.AddDistributedMemoryCache();

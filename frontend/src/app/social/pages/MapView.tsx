@@ -2,14 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Locate } from "lucide-react";
 import { toast } from "sonner";
 import occurrenceService, { OccurrenceSummary } from "../../../services/OccurrenceService";
+import { getOccurrenceCategoryLabel } from "../utils/occurrenceCategory";
 
 const defaultCenter: [number, number] = [-23.5505, -46.6333];
-
-const typeLabel: Record<string, string> = {
-  buraco: "Buraco",
-  alagamento: "Alagamento",
-  acidente: "Acidente",
-};
 
 type OccurrenceOnMap = OccurrenceSummary & {
   coordinates: [number, number];
@@ -555,7 +550,7 @@ export function MapView() {
 
     filteredOccurrences.forEach((occurrence) => {
       const [lat, lng] = occurrence.coordinates;
-      const label = typeLabel[occurrence.type] || occurrence.type;
+      const label = getOccurrenceCategoryLabel(occurrence.type);
       const address = occurrence.address || "Endereco nao informado";
       const title = `Ocorrência de ${label}`;
       const description = occurrence.description || "Sem descrição informada.";
