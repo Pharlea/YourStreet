@@ -14,6 +14,9 @@ type SortMode = "likes" | "newest" | "oldest";
 
 const statusLabels = {
   pending: { label: "Pendente", color: "bg-amber-500" },
+  waiting_confirmation: { label: "Aguardando confirmação", color: "bg-violet-500" },
+  completed: { label: "Concluída", color: "bg-emerald-500" },
+  waiting_reopen_confirmation: { label: "Aguardando reabertura", color: "bg-orange-500" },
 };
 
 function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -359,9 +362,9 @@ export function MyReports() {
                           <div className="w-full h-full grid place-items-center text-xs text-muted-foreground">Sem imagem</div>
                         )}
                         <div
-                          className={`absolute top-1 right-1 ${statusLabels.pending.color} text-white text-xs px-2 py-0.5 rounded-full`}
+                          className={`absolute top-1 right-1 ${statusLabels[report.status]?.color ?? "bg-slate-500"} text-white text-xs px-2 py-0.5 rounded-full`}
                         >
-                          {statusLabels.pending.label}
+                          {statusLabels[report.status]?.label ?? report.status}
                         </div>
                       </div>
 

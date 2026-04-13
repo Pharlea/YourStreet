@@ -27,7 +27,13 @@ public class Occurrence
     // imagem em base64
     public string? ImageBase64 { get; set; }
 
+    public string Status { get; set; } = "pending";
+    public DateTime? CompletedAt { get; set; }
+    public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
+    public int ReopenCount { get; set; }
+
     public ICollection<OccurrenceLike> Likes { get; set; } = new List<OccurrenceLike>();
     public ICollection<OccurrenceFavorite> Favorites { get; set; } = new List<OccurrenceFavorite>();
     public ICollection<OccurrenceComment> Comments { get; set; } = new List<OccurrenceComment>();
+    public ICollection<OccurrenceResolutionRequest> ResolutionRequests { get; set; } = new List<OccurrenceResolutionRequest>();
 }

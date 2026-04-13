@@ -44,6 +44,20 @@ namespace your_street_server.Migrations
                     b.Property<string>("ImageBase64")
                         .HasColumnType("text");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReopenCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -136,6 +150,80 @@ namespace your_street_server.Migrations
                         .IsUnique();
 
                     b.ToTable("OccurrenceLikes");
+                });
+
+            modelBuilder.Entity("your_street_server.Models.OccurrenceResolutionRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("OccurrenceId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RequestedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RequestType")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProofImageBase64")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProofText")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("LastInteractionAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurrenceId");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.ToTable("OccurrenceResolutionRequests");
+                });
+
+            modelBuilder.Entity("your_street_server.Models.OccurrenceResolutionVote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ResolutionRequestId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Confirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResolutionRequestId");
+
+                    b.HasIndex("ResolutionRequestId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("OccurrenceResolutionVotes");
                 });
 
             modelBuilder.Entity("your_street_server.Models.User", b =>
@@ -246,6 +334,44 @@ namespace your_street_server.Migrations
                         .IsRequired();
 
                     b.Navigation("Occurrence");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("your_street_server.Models.OccurrenceResolutionRequest", b =>
+                {
+                    b.HasOne("your_street_server.Models.Occurrence", "Occurrence")
+                        .WithMany("ResolutionRequests")
+                        .HasForeignKey("OccurrenceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("your_street_server.Models.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Occurrence");
+
+                    b.Navigation("RequestedByUser");
+                });
+
+            modelBuilder.Entity("your_street_server.Models.OccurrenceResolutionVote", b =>
+                {
+                    b.HasOne("your_street_server.Models.OccurrenceResolutionRequest", "ResolutionRequest")
+                        .WithMany("Votes")
+                        .HasForeignKey("ResolutionRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("your_street_server.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ResolutionRequest");
 
                     b.Navigation("User");
                 });

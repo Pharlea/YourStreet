@@ -4,11 +4,19 @@ import { ArrowLeft, Heart, MapPin, MessageCircle, Send, Share2 } from "lucide-re
 import { toast } from "sonner";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import occurrenceService, { OccurrenceComment, OccurrenceDetails as OccurrenceDetailsType } from "../../../services/OccurrenceService";
+import occurrenceService, {
+  OccurrenceComment,
+  OccurrenceDetails as OccurrenceDetailsType,
+  OccurrenceResolutionRequest,
+} from "../../../services/OccurrenceService";
+import AuthService from "../../../services/AuthService";
 import { getOccurrenceCategoryLabel } from "../utils/occurrenceCategory";
 
 const statusLabels = {
   pending: { label: "Pendente", color: "bg-amber-500" },
+  waiting_confirmation: { label: "Aguardando confirmação", color: "bg-violet-500" },
+  completed: { label: "Concluída", color: "bg-emerald-500" },
+  waiting_reopen_confirmation: { label: "Aguardando reabertura", color: "bg-orange-500" },
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -33,6 +41,22 @@ function getInitials(name?: string): string {
   return `${chunks[0][0]}${chunks[chunks.length - 1][0]}`.toUpperCase();
 }
 
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        resolve(result);
+      } else {
+        reject(new Error("Falha ao ler a imagem"));
+      }
+    };
+    reader.onerror = () => reject(new Error("Falha ao ler a imagem"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function OccurrenceDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -40,11 +64,16 @@ export function OccurrenceDetails() {
   const [occurrence, setOccurrence] = useState<OccurrenceDetailsType | null>(null);
   const [comments, setComments] = useState<Array<OccurrenceComment>>([]);
   const [commentText, setCommentText] = useState("");
+  const [resolutionText, setResolutionText] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [actionsLoading, setActionsLoading] = useState(false);
+  const [submittingResolution, setSubmittingResolution] = useState(false);
 
   const occurrenceId = id ? Number(id) : NaN;
+  const currentUser = AuthService.getInstance().getCurrentUser();
+  const currentUserId = currentUser ? Number(currentUser.id) : null;
 
   const loadOccurrence = async () => {
     if (!Number.isFinite(occurrenceId)) return;
@@ -76,6 +105,49 @@ export function OccurrenceDetails() {
       }
     })();
   }, [id]);
+
+  const handleRequestResolution = async (requestType: "completion" | "reopen") => {
+    if (!occurrence) return;
+
+    try {
+      setSubmittingResolution(true);
+
+      let proofImageBase64: string | null = null;
+      if (proofFile) {
+        proofImageBase64 = await fileToBase64(proofFile);
+      }
+
+      await occurrenceService.requestResolution(occurrence.id, {
+        requestType,
+        proofText: resolutionText.trim() || null,
+        proofImageBase64,
+      });
+
+      setResolutionText("");
+      setProofFile(null);
+      await loadOccurrence();
+      toast.success("Pedido de resolucao enviado com sucesso");
+    } catch (error) {
+      console.error(error);
+      toast.error(getErrorMessage(error, "Nao foi possivel enviar o pedido de resolucao"));
+    } finally {
+      setSubmittingResolution(false);
+    }
+  };
+
+  const handleVoteResolution = async (requestId: number, confirmed: boolean) => {
+    try {
+      setActionsLoading(true);
+      await occurrenceService.voteResolution(requestId, confirmed);
+      await loadOccurrence();
+      toast.success("Voto registrado com sucesso");
+    } catch (error) {
+      console.error(error);
+      toast.error(getErrorMessage(error, "Nao foi possivel registrar o voto"));
+    } finally {
+      setActionsLoading(false);
+    }
+  };
 
   const handleLike = async () => {
     if (!occurrence) return;
@@ -132,6 +204,10 @@ export function OccurrenceDetails() {
     }
   };
 
+  const activeRequest = occurrence?.resolutionRequests.find((request) => request.status === "pending");
+  const canVoteOnRequest = !!activeRequest && occurrence?.likedByCurrentUser && currentUserId !== activeRequest.requestedByUserId;
+  const canRequestReopen = occurrence?.status === "completed" && currentUserId === occurrence.userId;
+
   if (loading) {
     return (
       <div className="h-[calc(100vh-3.5rem-4rem)] flex items-center justify-center">
@@ -169,8 +245,8 @@ export function OccurrenceDetails() {
 
         <div className="px-4 pt-4">
           <div className="mb-3">
-            <span className={`${statusLabels.pending.color} text-white text-xs px-3 py-1 rounded-full inline-block`}>
-              {statusLabels.pending.label}
+            <span className={`${statusLabels[occurrence.status]?.color ?? "bg-slate-500"} text-white text-xs px-3 py-1 rounded-full inline-block`}>
+              {statusLabels[occurrence.status]?.label ?? "Desconhecido"}
             </span>
           </div>
 
@@ -185,6 +261,84 @@ export function OccurrenceDetails() {
           <div className="mb-6">
             <h3 className="font-semibold mb-2">Descricao</h3>
             <p className="text-muted-foreground leading-relaxed">{occurrence.description || "Sem descricao informada."}</p>
+          </div>
+
+          <div className="mb-6 rounded-2xl border border-border bg-slate-50 p-4">
+            <h3 className="font-semibold mb-2">Resolução</h3>
+            {activeRequest ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-border bg-white p-3">
+                  <p className="text-sm font-medium mb-1">Pedido em validação</p>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Tipo: {activeRequest.requestType === "completion" ? "Concluir ocorrência" : "Reabrir ocorrência"}
+                  </p>
+                  {activeRequest.proofText ? <p className="text-sm mb-2">{activeRequest.proofText}</p> : null}
+                  {activeRequest.proofImageBase64 ? (
+                    <img src={activeRequest.proofImageBase64} alt="Prova" className="w-full rounded-lg object-cover" />
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span>Aprovações: {activeRequest.approvalsCount}</span>
+                    <span>Recusas: {activeRequest.rejectionsCount}</span>
+                    <span>Última interação: {formatDate(activeRequest.lastInteractionAt)}</span>
+                  </div>
+                </div>
+                {canVoteOnRequest ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleVoteResolution(activeRequest.id, true)}
+                      disabled={actionsLoading}
+                      className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700 transition-colors"
+                    >
+                      Confirmo conclusão
+                    </button>
+                    <button
+                      onClick={() => handleVoteResolution(activeRequest.id, false)}
+                      disabled={actionsLoading}
+                      className="flex-1 rounded-lg bg-destructive px-3 py-2 text-white hover:bg-destructive/90 transition-colors"
+                    >
+                      Recuso conclusão
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {currentUserId === activeRequest?.requestedByUserId
+                      ? "Aguarde a comunidade votar no seu pedido."
+                      : "Apenas usuários que curtiram essa ocorrência podem votar."}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {occurrence.status === "completed"
+                    ? "Marcar essa ocorrência como não concluída pode iniciar um novo pedido de reabertura."
+                    : "Pode enviar um pedido de conclusão para esta ocorrência."}
+                </p>
+                <textarea
+                  value={resolutionText}
+                  onChange={(event) => setResolutionText(event.target.value)}
+                  placeholder={occurrence.status === "completed" ? "Descreva porque essa ocorrência ainda não foi concluída..." : "Descreva como essa ocorrência foi resolvida..."}
+                  className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground"
+                  rows={4}
+                />
+                <label className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                  />
+                  {proofFile ? proofFile.name : "Enviar imagem como prova"}
+                </label>
+                <button
+                  type="button"
+                  disabled={submittingResolution}
+                  onClick={() => handleRequestResolution(occurrence.status === "completed" ? "reopen" : "completion")}
+                  className="w-full rounded-lg bg-primary px-3 py-2 text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {occurrence.status === "completed" ? "Solicitar reabertura" : "Marcar como resolvido"}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-6 py-4 border-y border-border mb-6">

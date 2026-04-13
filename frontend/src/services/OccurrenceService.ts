@@ -27,11 +27,26 @@ export interface OccurrenceSummary {
   address: string | null;
   createdAt: string;
   imageBase64: string | null;
+  status: string;
+  completedAt?: string | null;
   likesCount: number;
   favoritesCount: number;
   commentsCount: number;
   likedByCurrentUser: boolean;
   favoritedByCurrentUser: boolean;
+}
+
+export interface OccurrenceResolutionRequest {
+  id: number;
+  requestType: "completion" | "reopen";
+  status: string;
+  proofText: string | null;
+  proofImageBase64: string | null;
+  approvalsCount: number;
+  rejectionsCount: number;
+  requestedByUserId: number;
+  requestedAt: string;
+  lastInteractionAt: string;
 }
 
 export interface OccurrenceComment {
@@ -49,6 +64,7 @@ export interface OccurrenceComment {
 
 export interface OccurrenceDetails extends Omit<OccurrenceSummary, "commentsCount"> {
   comments: Array<OccurrenceComment>;
+  resolutionRequests: Array<OccurrenceResolutionRequest>;
 }
 
 export interface CreateOccurrencePayload {
@@ -95,6 +111,24 @@ class OccurrenceService {
     });
 
     if (!response.ok) throw await readErrorMessage(response, "Falha ao favoritar ocorrencia");
+  }
+
+  async requestResolution(id: number, payload: { requestType: "completion" | "reopen"; proofText?: string | null; proofImageBase64?: string | null; }): Promise<void> {
+    const response = await apiFetch(`/occurrences/${id}/resolution-requests`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw await readErrorMessage(response, "Falha ao enviar pedido de resolucao");
+  }
+
+  async voteResolution(requestId: number, confirmed: boolean): Promise<void> {
+    const response = await apiFetch(`/occurrences/resolution-requests/${requestId}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ confirmed }),
+    });
+
+    if (!response.ok) throw await readErrorMessage(response, "Falha ao registrar voto de resolucao");
   }
 
   async getComments(id: number): Promise<Array<OccurrenceComment>> {
