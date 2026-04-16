@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router";
 import { Toaster } from "sonner";
 import { BottomNav } from "./components/BottomNav";
 import { MobileNavbar } from "./components/MobileNavbar";
+import { OccurrenceResolutionPrompt } from "./components/OccurrenceResolutionPrompt";
 import { CreateOccurrence } from "./pages/CreateOccurrence";
 import { MapView } from "./pages/MapView";
 import { MyReports } from "./pages/MyReports";
@@ -14,6 +15,7 @@ function Layout({ children, onLogout }: { children: ReactNode; onLogout: () => P
       <MobileNavbar onLogout={onLogout} />
       <main className="pt-14">{children}</main>
       <BottomNav />
+      <OccurrenceResolutionPrompt />
       <Toaster />
     </div>
   );

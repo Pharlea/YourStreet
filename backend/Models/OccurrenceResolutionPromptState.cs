@@ -1,6 +1,6 @@
 namespace your_street_server.Models;
 
-public class OccurrenceLike
+public class OccurrenceResolutionPromptState
 {
     public int Id { get; set; }
 
@@ -10,5 +10,13 @@ public class OccurrenceLike
     public int UserId { get; set; }
     public User? User { get; set; }
 
+    public bool HasNearbyPrompted { get; set; }
+
+    public int LastDayPrompted { get; set; }
+
+    public DateTime? NextPromptAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

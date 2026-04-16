@@ -9,6 +9,8 @@ import { getOccurrenceCategoryLabel } from "../utils/occurrenceCategory";
 
 const statusLabels = {
   pending: { label: "Pendente", color: "bg-amber-500" },
+  resolved: { label: "Resolvida", color: "bg-emerald-600" },
+  deleted: { label: "Excluida", color: "bg-zinc-500" },
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -169,8 +171,8 @@ export function OccurrenceDetails() {
 
         <div className="px-4 pt-4">
           <div className="mb-3">
-            <span className={`${statusLabels.pending.color} text-white text-xs px-3 py-1 rounded-full inline-block`}>
-              {statusLabels.pending.label}
+            <span className={`${statusLabels[occurrence.status].color} text-white text-xs px-3 py-1 rounded-full inline-block`}>
+              {statusLabels[occurrence.status].label}
             </span>
           </div>
 
@@ -209,6 +211,13 @@ export function OccurrenceDetails() {
               <Share2 className="h-5 w-5" />
               <span className="text-sm font-medium">Compartilhar</span>
             </button>
+          </div>
+
+          <div className="mb-6 rounded-lg border border-border bg-muted/40 px-3 py-2">
+            <p className="text-xs text-muted-foreground">Votacao de resolucao</p>
+            <p className="text-sm mt-1">
+              <strong>{occurrence.solvedVotes}</strong> disseram que solucionou e <strong>{occurrence.notSolvedVotes}</strong> disseram que nao solucionou.
+            </p>
           </div>
 
           <div className="mb-6">

@@ -25,8 +25,11 @@ export interface OccurrenceSummary {
   type: string;
   description: string | null;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
   imageBase64: string | null;
+  status: "pending" | "resolved" | "deleted";
   likesCount: number;
   favoritesCount: number;
   commentsCount: number;
@@ -49,12 +52,34 @@ export interface OccurrenceComment {
 
 export interface OccurrenceDetails extends Omit<OccurrenceSummary, "commentsCount"> {
   comments: Array<OccurrenceComment>;
+  solvedVotes: number;
+  notSolvedVotes: number;
 }
 
 export interface CreateOccurrencePayload {
   description: string;
   address: string;
+  latitude?: number | null;
+  longitude?: number | null;
   imageBase64?: string | null;
+}
+
+export interface ResolutionPrompt {
+  occurrenceId: number;
+  type: string;
+  description: string | null;
+  address: string | null;
+  imageBase64: string | null;
+  createdAt: string;
+  status: "pending" | "resolved" | "deleted";
+  reasons: Array<string>;
+}
+
+export interface ResolutionVoteResult {
+  status: "pending" | "resolved" | "deleted";
+  solvedVotes: number;
+  notSolvedVotes: number;
+  minVotesRequired?: number;
 }
 
 class OccurrenceService {
@@ -118,6 +143,31 @@ class OccurrenceService {
     });
 
     if (!response.ok) throw await readErrorMessage(response, "Falha ao excluir ocorrencia");
+  }
+
+  async getResolutionPrompts(userLocation?: { lat: number; lng: number } | null): Promise<Array<ResolutionPrompt>> {
+    const params = new URLSearchParams();
+    if (userLocation) {
+      params.set("userLat", String(userLocation.lat));
+      params.set("userLng", String(userLocation.lng));
+    }
+
+    const query = params.toString();
+    const path = query ? `/occurrences/resolution-prompts?${query}` : "/occurrences/resolution-prompts";
+
+    const response = await apiFetch(path);
+    if (!response.ok) throw await readErrorMessage(response, "Falha ao carregar prompts de resolucao");
+    return response.json();
+  }
+
+  async voteResolution(id: number, isSolved: boolean): Promise<ResolutionVoteResult> {
+    const response = await apiFetch(`/occurrences/${id}/resolution-vote`, {
+      method: "POST",
+      body: JSON.stringify({ isSolved }),
+    });
+
+    if (!response.ok) throw await readErrorMessage(response, "Falha ao registrar voto de resolucao");
+    return response.json();
   }
 }
 

@@ -29,7 +29,28 @@ var dbConnectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING")
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(dbConnectionString));
 
+builder.Services.AddOptions<OccurrenceStateOptions>()
+    .Bind(builder.Configuration.GetSection(OccurrenceStateOptions.SectionName));
+
+if (int.TryParse(Environment.GetEnvironmentVariable("OCCURRENCE_RESOLUTION_MIN_VOTES"), out var minVotesFromEnv))
+{
+    builder.Services.PostConfigure<OccurrenceStateOptions>(options =>
+    {
+        options.ResolutionMinVotes = Math.Max(1, minVotesFromEnv);
+    });
+}
+
+if (int.TryParse(Environment.GetEnvironmentVariable("OCCURRENCE_LIFECYCLE_INTERVAL_SECONDS"), out var lifecycleIntervalFromEnv))
+{
+    builder.Services.PostConfigure<OccurrenceStateOptions>(options =>
+    {
+        options.LifecycleIntervalSeconds = Math.Max(30, lifecycleIntervalFromEnv);
+    });
+}
+
 builder.Services.AddHttpClient<IOccurrenceCategorizationService, GeminiOccurrenceCategorizationService>();
+builder.Services.AddScoped<IOccurrenceLifecycleService, OccurrenceLifecycleService>();
+builder.Services.AddHostedService<OccurrenceLifecycleBackgroundService>();
 
 // Configurar cache para sessões
 builder.Services.AddDistributedMemoryCache();

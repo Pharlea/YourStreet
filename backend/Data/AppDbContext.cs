@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
     public DbSet<OccurrenceLike> OccurrenceLikes { get; set; }
     public DbSet<OccurrenceFavorite> OccurrenceFavorites { get; set; }
     public DbSet<OccurrenceComment> OccurrenceComments { get; set; }
+    public DbSet<OccurrenceResolutionVote> OccurrenceResolutionVotes { get; set; }
+    public DbSet<OccurrenceResolutionPromptState> OccurrenceResolutionPromptStates { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,8 +49,12 @@ public class AppDbContext : DbContext
             entity.Property(o => o.Type).IsRequired().HasMaxLength(50);
             entity.Property(o => o.Description).HasMaxLength(2000);
             entity.Property(o => o.Address).HasMaxLength(500);
+            entity.Property(o => o.Status).IsRequired().HasMaxLength(20).HasDefaultValue(OccurrenceStatuses.Pending);
+            entity.Property(o => o.LastInteractionAt).IsRequired();
             entity.Property(o => o.ImageBase64).HasColumnType("text");
             entity.HasOne(o => o.User).WithMany().HasForeignKey(o => o.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(o => o.Status);
+            entity.HasIndex(o => o.LastInteractionAt);
         });
 
         modelBuilder.Entity<OccurrenceLike>(entity =>
@@ -73,6 +79,23 @@ public class AppDbContext : DbContext
             entity.Property(c => c.Text).IsRequired().HasMaxLength(1000);
             entity.HasOne(c => c.Occurrence).WithMany(o => o.Comments).HasForeignKey(c => c.OccurrenceId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(c => c.User).WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OccurrenceResolutionVote>(entity =>
+        {
+            entity.HasKey(v => v.Id);
+            entity.HasIndex(v => new { v.OccurrenceId, v.UserId }).IsUnique();
+            entity.HasOne(v => v.Occurrence).WithMany(o => o.ResolutionVotes).HasForeignKey(v => v.OccurrenceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(v => v.User).WithMany().HasForeignKey(v => v.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<OccurrenceResolutionPromptState>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+            entity.HasIndex(p => new { p.OccurrenceId, p.UserId }).IsUnique();
+            entity.HasIndex(p => p.NextPromptAt);
+            entity.HasOne(p => p.Occurrence).WithMany(o => o.ResolutionPromptStates).HasForeignKey(p => p.OccurrenceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(p => p.User).WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

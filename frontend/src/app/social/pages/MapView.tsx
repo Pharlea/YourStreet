@@ -410,8 +410,14 @@ export function MapView() {
 
       for (let i = 0; i < occurrences.length; i += 1) {
         const occurrence = occurrences[i];
-        const address = occurrence.address?.trim() ?? "";
-        const coords = address ? await fetchCoordinates(address) : null;
+        let coords: [number, number] | null = null;
+
+        if (typeof occurrence.latitude === "number" && typeof occurrence.longitude === "number") {
+          coords = [occurrence.latitude, occurrence.longitude];
+        } else {
+          const address = occurrence.address?.trim() ?? "";
+          coords = address ? await fetchCoordinates(address) : null;
+        }
 
         resolved.push({
           ...occurrence,

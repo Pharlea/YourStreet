@@ -87,6 +87,46 @@ export function CreateOccurrence() {
     }
   };
 
+  const getAddressCoordinates = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    if (!HERE_API_KEY) {
+      return null;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        q: address,
+        limit: "1",
+        lang: "pt-BR",
+        in: "countryCode:BRA",
+        apiKey: HERE_API_KEY,
+      });
+
+      const response = await fetch(`https://geocode.search.hereapi.com/v1/geocode?${params.toString()}`);
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        items?: Array<{
+          position?: {
+            lat: number;
+            lng: number;
+          };
+        }>;
+      };
+
+      const position = data.items?.[0]?.position;
+      if (!position) return null;
+
+      return {
+        lat: Number(position.lat),
+        lng: Number(position.lng),
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -116,9 +156,12 @@ export function CreateOccurrence() {
 
     try {
       setSubmitting(true);
+      const coordinates = await getAddressCoordinates(location);
       await occurrenceService.create({
         description,
         address: location,
+        latitude: coordinates?.lat ?? null,
+        longitude: coordinates?.lng ?? null,
         imageBase64: image,
       });
 

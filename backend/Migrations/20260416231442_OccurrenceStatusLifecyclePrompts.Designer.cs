@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using your_street_server.Data;
@@ -11,9 +12,11 @@ using your_street_server.Data;
 namespace your_street_server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260416231442_OccurrenceStatusLifecyclePrompts")]
+    partial class OccurrenceStatusLifecyclePrompts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -44,9 +47,6 @@ namespace your_street_server.Migrations
                     b.Property<string>("ImageBase64")
                         .HasColumnType("text");
 
-                    b.Property<DateTime>("LastInteractionAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision");
 
@@ -72,8 +72,6 @@ namespace your_street_server.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("LastInteractionAt");
 
                     b.HasIndex("Status");
 
@@ -184,9 +182,6 @@ namespace your_street_server.Migrations
                     b.Property<int>("LastDayPrompted")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("NextPromptAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<int>("OccurrenceId")
                         .HasColumnType("integer");
 
@@ -197,8 +192,6 @@ namespace your_street_server.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("NextPromptAt");
 
                     b.HasIndex("UserId");
 
